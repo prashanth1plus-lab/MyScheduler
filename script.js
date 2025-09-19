@@ -34,6 +34,7 @@ let selectedStatus = null; // e.g. "WFH" or "" for CLEAR single
 let current = new Date(); // current device date
 let currentYear = current.getFullYear();
 let currentMonth = current.getMonth() + 1; // 1..12
+let summaryCurrentYear = currentYear;
 
 // DOM refs
 const monthContainer = document.getElementById('monthContainer');
@@ -49,7 +50,7 @@ const tabYear = document.getElementById('tabYear');
 const tabSummary = document.getElementById('tabSummary');
 const actionBar = document.getElementById('actionBar');
 const summaryLabel = document.getElementById('summaryLabel');
-const summaryPanel = document.getElementById('summaryPanel');
+const summaryPanelMonth = document.getElementById('summaryPanelMonth');
 const summaryPrev = document.getElementById('summaryPrev');
 const summaryNext = document.getElementById('summaryNext');
 const statusBtns = document.querySelectorAll('.status-btn');
@@ -57,14 +58,30 @@ const clearSingleBtn = document.getElementById('clearSingleBtn');
 const clearMonthBtn = document.getElementById('clearMonthBtn');
 const voiceBtn = document.getElementById('voiceBtn');
 
+const summaryTabs = document.querySelectorAll('.summary-tab-btn');
+const summaryMonthTab = document.getElementById('summaryMonth');
+const summaryYearTab = document.getElementById('summaryYear');
+const summaryRangeTab = document.getElementById('summaryRange');
+const summaryYearLabel = document.getElementById('summaryYearLabel');
+const summaryPanelYear = document.getElementById('summaryPanelYear');
+const summaryYearPrev = document.getElementById('summaryYearPrev');
+const summaryYearNext = document.getElementById('summaryYearNext');
+const rangeStartInput = document.getElementById('rangeStart');
+const rangeEndInput = document.getElementById('rangeEnd');
+const generateRangeSummaryBtn = document.getElementById('generateRangeSummary');
+const summaryPanelRange = document.getElementById('summaryPanelRange');
+
 // event listeners
 prevBtn.addEventListener('click', () => changeMonth(-1));
 nextBtn.addEventListener('click', () => changeMonth(1));
 tabMonth.addEventListener('click', () => showView('month'));
 tabYear.addEventListener('click', () => showView('year'));
 tabSummary.addEventListener('click', () => showView('summary'));
-summaryPrev.addEventListener('click', () => updateSummary(currentYear, currentMonth - 1));
-summaryNext.addEventListener('click', () => updateSummary(currentYear, currentMonth + 1));
+summaryPrev.addEventListener('click', () => updateSummaryMonthly(currentYear, currentMonth - 1));
+summaryNext.addEventListener('click', () => updateSummaryMonthly(currentYear, currentMonth + 1));
+summaryYearPrev.addEventListener('click', () => updateSummaryYearly(summaryCurrentYear - 1));
+summaryYearNext.addEventListener('click', () => updateSummaryYearly(summaryCurrentYear + 1));
+generateRangeSummaryBtn.addEventListener('click', () => updateSummaryRange());
 clearSingleBtn.addEventListener('click', () => selectedStatus = "");
 clearMonthBtn.addEventListener('click', () => clearMonth());
 voiceBtn.addEventListener('click', () => startVoiceRecognition());
@@ -74,6 +91,27 @@ statusBtns.forEach(btn => {
     statusBtns.forEach(b => b.classList.remove('active'));
     selectedStatus = btn.dataset.status;
     btn.classList.add('active');
+  });
+});
+
+summaryTabs.forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    summaryTabs.forEach(b => b.classList.remove('active'));
+    e.target.classList.add('active');
+    const tab = e.target.dataset.tab;
+    summaryMonthTab.style.display = 'none';
+    summaryYearTab.style.display = 'none';
+    summaryRangeTab.style.display = 'none';
+    if (tab === 'month') {
+      summaryMonthTab.style.display = 'block';
+      updateSummaryMonthly(currentYear, currentMonth);
+    } else if (tab === 'year') {
+      summaryYearTab.style.display = 'block';
+      updateSummaryYearly(summaryCurrentYear);
+    } else if (tab === 'range') {
+      summaryRangeTab.style.display = 'block';
+      updateSummaryRange();
+    }
   });
 });
 
@@ -116,7 +154,10 @@ function showView(viewName) {
     actionBar.style.display = 'none';
     prevBtn.style.display = 'none';
     nextBtn.style.display = 'none';
-    refreshViews();
+    const activeTab = document.querySelector('.summary-tab-btn.active').dataset.tab;
+    if (activeTab === 'month') updateSummaryMonthly(currentYear, currentMonth);
+    else if (activeTab === 'year') updateSummaryYearly(summaryCurrentYear);
+    else if (activeTab === 'range') updateSummaryRange();
   }
 }
 
@@ -135,10 +176,10 @@ function changeMonth(direction) {
 }
 
 function buildMonthView(year, month) {
-  monthContainer.innerHTML = ''; // clear
+  monthContainer.innerHTML = '';
   monthYearLabel.textContent = `${MONTH_NAMES[month - 1]} ${year}`;
 
-  const firstDayOfMonth = new Date(year, month - 1, 1).getDay(); // 0=Sun, 6=Sat
+  const firstDayOfMonth = new Date(year, month - 1, 1).getDay();
   const daysInMonth = new Date(year, month, 0).getDate();
 
   const dayHeaders = document.createElement('div');
@@ -154,31 +195,26 @@ function buildMonthView(year, month) {
   const grid = document.createElement('div');
   grid.classList.add('calendar-grid');
 
-  // Add empty cells for the start of the month
   for (let i = 0; i < firstDayOfMonth; i++) {
     const emptyCell = document.createElement('div');
     emptyCell.classList.add('empty-cell');
     grid.appendChild(emptyCell);
   }
 
-  // Add day cells
   for (let day = 1; day <= daysInMonth; day++) {
     const date = new Date(year, month - 1, day);
     const dayCell = document.createElement('div');
     dayCell.classList.add('day-cell');
     
-    // Add day number
     const dayNumber = document.createElement('span');
     dayNumber.classList.add('day-number');
     dayNumber.textContent = day;
     dayCell.appendChild(dayNumber);
 
-    // Check for weekend
     if (date.getDay() === 0 || date.getDay() === 6) {
       dayCell.classList.add('weekend');
     }
 
-    // Add status label if saved
     const dateISO = iso(year, month, day);
     if (schedule[dateISO]) {
       dayCell.classList.add(schedule[dateISO]);
@@ -198,7 +234,6 @@ function buildMonthView(year, month) {
         dayCell.classList.remove(prevStatus);
         dayCell.classList.add(selectedStatus);
         
-        // Remove and re-add label to prevent duplicates
         const existingLabel = dayCell.querySelector('.day-label');
         if (existingLabel) { existingLabel.remove(); }
         const newLabel = document.createElement('span');
@@ -230,28 +265,34 @@ function buildYearView(year) {
     card.dataset.month = m;
 
     const monthHeader = document.createElement('h4');
+    monthHeader.classList.add('month-title');
     monthHeader.textContent = MONTH_NAMES[m - 1];
     card.appendChild(monthHeader);
 
+    const dayHeaders = document.createElement('div');
+    dayHeaders.classList.add('calendar-grid');
+    DAY_NAMES.forEach(day => {
+      const header = document.createElement('div');
+      header.classList.add('day-header');
+      header.textContent = day.substring(0, 1);
+      dayHeaders.appendChild(header);
+    });
+    card.appendChild(dayHeaders);
+
     const grid = document.createElement('div');
     grid.classList.add('calendar-grid');
-    grid.style.gap = '2px';
     const daysInMonth = new Date(year, m, 0).getDate();
     const firstDayOfMonth = new Date(year, m-1, 1).getDay();
 
-    // Add empty cells
     for(let i=0; i<firstDayOfMonth; i++){
       const empty = document.createElement('div');
       empty.classList.add('empty-cell');
-      empty.style.minHeight = '10px';
       grid.appendChild(empty);
     }
     
     for (let d = 1; d <= daysInMonth; d++) {
       const dayCell = document.createElement('div');
       dayCell.classList.add('day-cell');
-      dayCell.style.minHeight = '10px';
-      dayCell.style.padding = '2px';
       
       const date = new Date(year, m-1, d);
       if (date.getDay() === 0 || date.getDay() === 6) {
@@ -267,7 +308,6 @@ function buildYearView(year) {
     card.appendChild(grid);
     yearContainer.appendChild(card);
 
-    // Event listener to switch to Month tab
     card.addEventListener('click', () => {
       currentYear = year;
       currentMonth = m;
@@ -276,8 +316,8 @@ function buildYearView(year) {
   }
 }
 
-function updateSummary(year, month) {
-  summaryPanel.innerHTML = '';
+function updateSummaryMonthly(year, month) {
+  summaryPanelMonth.innerHTML = '';
   if (month < 1) { month = 12; year--; }
   if (month > 12) { month = 1; year++; }
   currentYear = year;
@@ -299,7 +339,63 @@ function updateSummary(year, month) {
     const item = document.createElement('div');
     item.classList.add('summary-row', status);
     item.innerHTML = `<div>${status}</div><div>${counts[status]}</div>`;
-    summaryPanel.appendChild(item);
+    summaryPanelMonth.appendChild(item);
+  }
+}
+
+function updateSummaryYearly(year) {
+  summaryPanelYear.innerHTML = '';
+  summaryCurrentYear = year;
+  summaryYearLabel.textContent = year;
+
+  const counts = STATUS_KEYS.reduce((acc, status) => ({ ...acc, [status]: 0 }), {});
+  
+  for (let m = 1; m <= 12; m++) {
+    const daysInMonth = new Date(year, m, 0).getDate();
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateISO = iso(year, m, day);
+      const status = schedule[dateISO];
+      if (status && counts.hasOwnProperty(status)) {
+        counts[status]++;
+      }
+    }
+  }
+
+  for (const status in counts) {
+    const item = document.createElement('div');
+    item.classList.add('summary-row', status);
+    item.innerHTML = `<div>${status}</div><div>${counts[status]}</div>`;
+    summaryPanelYear.appendChild(item);
+  }
+}
+
+function updateSummaryRange() {
+  const startDate = new Date(rangeStartInput.value);
+  const endDate = new Date(rangeEndInput.value);
+  summaryPanelRange.innerHTML = '';
+
+  if (isNaN(startDate) || isNaN(endDate) || startDate > endDate) {
+    summaryPanelRange.innerHTML = '<p>Please select a valid date range.</p>';
+    return;
+  }
+
+  const counts = STATUS_KEYS.reduce((acc, status) => ({ ...acc, [status]: 0 }), {});
+  let currentDate = new Date(startDate);
+
+  while (currentDate <= endDate) {
+    const dateISO = iso(currentDate.getFullYear(), currentDate.getMonth() + 1, currentDate.getDate());
+    const status = schedule[dateISO];
+    if (status && counts.hasOwnProperty(status)) {
+      counts[status]++;
+    }
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  for (const status in counts) {
+    const item = document.createElement('div');
+    item.classList.add('summary-row', status);
+    item.innerHTML = `<div>${status}</div><div>${counts[status]}</div>`;
+    summaryPanelRange.appendChild(item);
   }
 }
 
@@ -336,7 +432,6 @@ function startVoiceRecognition() {
   };
 }
 
-// Helper to get a date from a phrase like "today", "tomorrow", "next monday"
 function getDateFromPhrase(phrase) {
   const today = new Date();
   const lowerPhrase = phrase.toLowerCase();
@@ -376,7 +471,6 @@ function parseVoice(text) {
   const statusPhrases = Object.keys(VOICE_STATUS_MAP).join('|');
   const monthNamesRegex = MONTH_NAMES.map(m=>m.toLowerCase()).join('|');
   
-  // Get status from phrase
   const getStatus = (t) => {
     for (const phrase in VOICE_STATUS_MAP) {
       if (t.includes(phrase)) {
@@ -386,7 +480,6 @@ function parseVoice(text) {
     return null;
   };
 
-  // 1. Handle "Clear" commands
   const clearMonthMatch = text.match(/clear this month/);
   if (clearMonthMatch) {
     clearMonth();
@@ -409,7 +502,6 @@ function parseVoice(text) {
     return;
   }
 
-  // 2. Handle simple status assignments with relative dates (Today, Tomorrow, Weekdays)
   const relativeDateMatch = text.match(new RegExp(`(${DAY_NAMES.map(d=>d.toLowerCase()).join('|')}|today|tomorrow|this\\s*${DAY_NAMES.map(d=>d.toLowerCase()).join('|')}|next\\s*${DAY_NAMES.map(d=>d.toLowerCase()).join('|')}) is (${statusPhrases})`));
   if (relativeDateMatch) {
     const phrase = relativeDateMatch[1];
@@ -424,7 +516,6 @@ function parseVoice(text) {
     }
   }
   
-  // 3. Handle "next week..."
   const nextWeekMatch = text.match(new RegExp(`next week (${statusPhrases})`));
   if (nextWeekMatch) {
     const selectedStatus = getStatus(nextWeekMatch[1]);
@@ -444,7 +535,6 @@ function parseVoice(text) {
     }
   }
 
-  // 4. Handle date ranges
   const rangeMatch = text.match(new RegExp(`(\\d+)\\s*(?:to|-)\\s*(\\d+)(?:th)?\\s*(${monthNamesRegex})\\s*(${statusPhrases})`));
   if (rangeMatch) {
     const fromDay = parseInt(rangeMatch[1]);
@@ -464,7 +554,6 @@ function parseVoice(text) {
     }
   }
 
-  // 5. Handle single-day assignments
   const singleDayMatch = text.match(new RegExp(`(?:mark|on)?\\s*(\\d+)(?:st|nd|rd|th)?\\s*(?:of)?\\s*(${monthNamesRegex})?\\s*(${statusPhrases})`));
   if (singleDayMatch) {
     const day = parseInt(singleDayMatch[1]);
@@ -501,7 +590,12 @@ function iso(year, month, day) {
 function refreshViews() {
   if (tabMonth.classList.contains('active')) buildMonthView(currentYear, currentMonth);
   if (tabYear.classList.contains('active')) buildYearView(currentYear);
-  if (tabSummary.classList.contains('active')) updateSummary(currentYear, currentMonth);
+  if (tabSummary.classList.contains('active')) {
+    const activeTab = document.querySelector('.summary-tab-btn.active').dataset.tab;
+    if (activeTab === 'month') updateSummaryMonthly(currentYear, currentMonth);
+    else if (activeTab === 'year') updateSummaryYearly(summaryCurrentYear);
+    else if (activeTab === 'range') updateSummaryRange();
+  }
 }
 
 // initialize

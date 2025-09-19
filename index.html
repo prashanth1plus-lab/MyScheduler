@@ -48,12 +48,35 @@
     </section>
 
     <section id="summaryView" class="view" style="display:none;">
-      <div class="summary-header">
-        <button id="summaryPrev" class="nav-btn">&lt;</button>
-        <div id="summaryLabel" class="label"></div>
-        <button id="summaryNext" class="nav-btn">&gt;</button>
+      <nav class="summary-tabs">
+        <button class="summary-tab-btn active" data-tab="month">Month</button>
+        <button class="summary-tab-btn" data-tab="year">Year</button>
+        <button class="summary-tab-btn" data-tab="range">Range</button>
+      </nav>
+      <div id="summaryMonth" class="summary-view-tab">
+        <div class="summary-header">
+          <button id="summaryPrev" class="nav-btn">&lt;</button>
+          <div id="summaryLabel" class="label"></div>
+          <button id="summaryNext" class="nav-btn">&gt;</button>
+        </div>
+        <div id="summaryPanelMonth" class="summary-panel"></div>
       </div>
-      <div id="summaryPanel" class="summary-panel"></div>
+      <div id="summaryYear" class="summary-view-tab" style="display:none;">
+        <div class="summary-header">
+          <button id="summaryYearPrev" class="nav-btn">&lt;</button>
+          <div id="summaryYearLabel" class="label"></div>
+          <button id="summaryYearNext" class="nav-btn">&gt;</button>
+        </div>
+        <div id="summaryPanelYear" class="summary-panel"></div>
+      </div>
+      <div id="summaryRange" class="summary-view-tab" style="display:none;">
+        <div class="date-range-picker">
+          <label>From: <input type="date" id="rangeStart" /></label>
+          <label>To: <input type="date" id="rangeEnd" /></label>
+          <button id="generateRangeSummary">Generate Summary</button>
+        </div>
+        <div id="summaryPanelRange" class="summary-panel"></div>
+      </div>
     </section>
   </main>
   
