@@ -14,7 +14,6 @@
       <button id="tabMonth" class="tab-btn active">MONTH</button>
       <button id="tabYear" class="tab-btn">YEAR</button>
       <button id="tabSummary" class="tab-btn">SUMMARY</button>
-      <button id="tabHelp" class="tab-btn">HELP</button>
     </nav>
   </header>
 
@@ -25,70 +24,37 @@
       <button id="nextBtn" class="nav-btn">&gt;</button>
     </section>
 
+    <section id="actionBar" class="status-row">
+      <div class="status-left">
+        <button class="status-btn" data-status="WFH">WFH</button>
+        <button class="status-btn" data-status="OFFC">OFFC</button>
+        <button class="status-btn" data-status="TRAIN">TRAIN</button>
+        <button class="status-btn" data-status="SL/EL">SL/EL</button>
+        <button class="status-btn" data-status="PH">PH</button>
+        <button id="clearSingleBtn" class="status-btn" data-status="">CLEAR</button>
+        <button id="clearMonthBtn" class="status-btn" data-status="CLEARMONTH">CLEAR MONTH</button>
+      </div>
+      <div class="status-right">
+        <button id="voiceBtn" class="voice-btn" title="Use Chrome on Android for best voice support">🎤 Voice</button>
+      </div>
+    </section>
+
     <section id="monthView" class="view">
-      <section id="actionBar" class="status-row">
-        <div class="status-left">
-          <button class="status-btn" data-status="WFH">WFH</button>
-          <button class="status-btn" data-status="OFFC">OFFC</button>
-          <button class="status-btn" data-status="TRAIN">TRAIN</button>
-          <button class="status-btn" data-status="EL">EL</button>
-          <button class="status-btn" data-status="SL">SL</button>
-          <button class="status-btn" data-status="PH">PH</button>
-          <button id="clearSingleBtn" class="status-btn" data-status="">CLEAR</button>
-        </div>
-        <div class="status-right">
-          <button id="voiceBtnMonth" class="voice-btn" title="Use Chrome on Android for best voice support">🎤 Voice</button>
-        </div>
-      </section>
       <div id="monthContainer" class="month-container"></div>
     </section>
 
     <section id="yearView" class="view" style="display:none;">
-      <section class="status-row">
-        <button id="voiceBtnYear" class="voice-btn" title="Use Chrome on Android for best voice support">🎤 Voice</button>
-      </section>
       <div id="yearContainer" class="year-container"></div>
     </section>
 
     <section id="summaryView" class="view" style="display:none;">
-      <section class="status-row">
-        <button id="voiceBtnSummary" class="voice-btn" title="Use Chrome on Android for best voice support">🎤 Voice</button>
-      </section>
-      <nav class="summary-tabs">
-        <button class="summary-tab-btn active" data-tab="month">Month</button>
-        <button class="summary-tab-btn" data-tab="year">Year</button>
-        <button class="summary-tab-btn" data-tab="range">Range</button>
-      </nav>
-      <div id="summaryMonth" class="summary-view-tab">
-        <div class="summary-header">
-          <button id="summaryPrev" class="nav-btn">&lt;</button>
-          <div id="summaryLabel" class="label"></div>
-          <button id="summaryNext" class="nav-btn">&gt;</button>
-        </div>
-        <div id="summaryPanelMonth" class="summary-panel"></div>
+      <div class="summary-header">
+        <button id="summaryPrev" class="nav-btn">&lt;</button>
+        <div id="summaryLabel" class="label"></div>
+        <button id="summaryNext" class="nav-btn">&gt;</button>
       </div>
-      <div id="summaryYear" class="summary-view-tab" style="display:none;">
-        <div class="summary-header">
-          <button id="summaryYearPrev" class="nav-btn">&lt;</button>
-          <div id="summaryYearLabel" class="label"></div>
-          <button id="summaryYearNext" class="nav-btn">&gt;</button>
-        </div>
-        <div id="summaryPanelYear" class="summary-panel"></div>
-      </div>
-      <div id="summaryRange" class="summary-view-tab" style="display:none;">
-        <div class="date-range-picker">
-          <label>From: <input type="date" id="rangeStart" /></label>
-          <label>To: <input type="date" id="rangeEnd" /></label>
-          <button id="generateRangeSummary">Generate Summary</button>
-        </div>
-        <div id="summaryPanelRange" class="summary-panel"></div>
-      </div>
+      <div id="summaryPanel" class="summary-panel"></div>
     </section>
-
-    <section id="helpView" class="view" style="display:none;">
-      <div id="helpContent" class="help-content"></div>
-    </section>
-
   </main>
 
   <footer class="footer">Installable PWA — works offline after first load</footer>
