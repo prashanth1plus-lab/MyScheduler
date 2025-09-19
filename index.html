@@ -18,14 +18,12 @@
   </header>
 
   <main>
-    <!-- top controls (month/year label + prev/next) -->
     <section class="controls">
       <button id="prevBtn" class="nav-btn">&lt;</button>
       <div id="monthYearLabel" class="label"></div>
       <button id="nextBtn" class="nav-btn">&gt;</button>
     </section>
 
-    <!-- action bar (hidden on summary) -->
     <section id="actionBar" class="status-row">
       <div class="status-left">
         <button class="status-btn" data-status="WFH">WFH</button>
@@ -42,29 +40,24 @@
       </div>
     </section>
 
-    <!-- MONTH view (editable) -->
     <section id="monthView" class="view">
       <div id="monthContainer" class="month-container"></div>
     </section>
 
-    <!-- YEAR view (read-only) -->
     <section id="yearView" class="view" style="display:none;">
       <div id="yearContainer" class="year-container"></div>
     </section>
 
-    <!-- SUMMARY view (read-only) -->
     <section id="summaryView" class="view" style="display:none;">
       <div class="summary-header">
         <button id="summaryPrev" class="nav-btn">&lt;</button>
         <div id="summaryLabel" class="label"></div>
         <button id="summaryNext" class="nav-btn">&gt;</button>
       </div>
-      <div id="summaryPanel" class="summary-panel"></div>
+      <div id="summaryPanel"></div>
     </section>
   </main>
-
-  <footer class="footer">Installable PWA — works offline after first load</footer>
-
+  
   <script src="script.js"></script>
 </body>
 </html>

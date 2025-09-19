@@ -6,7 +6,9 @@
 */
 
 const START_YEAR = 2025, END_YEAR = 2040;
-const STATUS_KEYS = ["WFH","OFFC","TRAIN","EL","SL","PH"];
+const STATUS_KEYS = ["WFH", "OFFC", "TRAIN", "EL", "SL", "PH"];
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 // application state
 let schedule = {};
@@ -32,372 +34,359 @@ const summaryLabel = document.getElementById('summaryLabel');
 const summaryPanel = document.getElementById('summaryPanel');
 const summaryPrev = document.getElementById('summaryPrev');
 const summaryNext = document.getElementById('summaryNext');
-const voiceBtn = document.getElementById('voiceBtn');
-const clearMonthBtn = document.getElementById('clearMonthBtn');
+const statusBtns = document.querySelectorAll('.status-btn');
 const clearSingleBtn = document.getElementById('clearSingleBtn');
+const clearMonthBtn = document.getElementById('clearMonthBtn');
+const voiceBtn = document.getElementById('voiceBtn');
 
-// --- storage ---
-function loadSchedule(){
-  try {
-    const raw = localStorage.getItem('wf_schedule_v_final');
-    if(raw) schedule = JSON.parse(raw);
-  } catch(e){ console.warn('load error', e); schedule = {}; }
-}
-function saveSchedule(){
-  try { localStorage.setItem('wf_schedule_v_final', JSON.stringify(schedule)); } catch(e){ console.warn(e); }
-}
+// event listeners
+prevBtn.addEventListener('click', () => changeMonth(-1));
+nextBtn.addEventListener('click', () => changeMonth(1));
+tabMonth.addEventListener('click', () => showView('month'));
+tabYear.addEventListener('click', () => showView('year'));
+tabSummary.addEventListener('click', () => showView('summary'));
+summaryPrev.addEventListener('click', () => updateSummary(currentYear, currentMonth - 1));
+summaryNext.addEventListener('click', () => updateSummary(currentYear, currentMonth + 1));
+clearSingleBtn.addEventListener('click', () => selectedStatus = "");
+clearMonthBtn.addEventListener('click', () => clearMonth());
+voiceBtn.addEventListener('click', () => startVoiceRecognition());
 
-// --- helpers ---
-function pad(n){ return n.toString().padStart(2,'0'); }
-function iso(y,m,d){ return `${y}-${pad(m)}-${pad(d)}`; }
-function monthName(m){ return new Date(2000,m-1,1).toLocaleString('default',{month:'long'}); }
-
-// --- render a month card ---
-function renderMonthCard(y,m){
-  const card = document.createElement('div');
-  card.className = 'month-card';
-  const title = document.createElement('div'); title.className='month-title'; title.textContent = `${monthName(m)} ${y}`;
-  card.appendChild(title);
-
-  const grid = document.createElement('div'); grid.className='calendar-grid';
-
-  // weekday headers
-  ["SUN","MON","TUE","WED","THU","FRI","SAT"].forEach(h=>{
-    const hcell = document.createElement('div');
-    hcell.className = 'day-cell';
-    hcell.style.fontWeight = '700';
-    hcell.textContent = h;
-    grid.appendChild(hcell);
+statusBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    statusBtns.forEach(b => b.classList.remove('active'));
+    selectedStatus = btn.dataset.status;
+    btn.classList.add('active');
   });
+});
 
-  const first = new Date(y, m-1, 1);
-  const firstDow = first.getDay(); // 0..6
-  const daysInMonth = new Date(y,m,0).getDate();
+// data functions
+function saveSchedule() {
+  localStorage.setItem('schedule', JSON.stringify(schedule));
+}
 
-  // blanks before the 1st
-  for(let i=0;i<firstDow;i++){
-    const empty = document.createElement('div');
-    empty.className = 'day-cell';
-    empty.textContent = '';
-    grid.appendChild(empty);
+function loadSchedule() {
+  const saved = localStorage.getItem('schedule');
+  if (saved) {
+    schedule = JSON.parse(saved);
+  }
+}
+
+// view functions
+function showView(viewName) {
+  tabMonth.classList.remove('active');
+  tabYear.classList.remove('active');
+  tabSummary.classList.remove('active');
+  monthView.style.display = 'none';
+  yearView.style.display = 'none';
+  summaryView.style.display = 'none';
+
+  actionBar.style.display = 'flex';
+  prevBtn.style.display = 'flex';
+  nextBtn.style.display = 'flex';
+
+  if (viewName === 'month') {
+    tabMonth.classList.add('active');
+    monthView.style.display = 'block';
+    refreshViews();
+  } else if (viewName === 'year') {
+    tabYear.classList.add('active');
+    yearView.style.display = 'block';
+    refreshViews();
+  } else if (viewName === 'summary') {
+    tabSummary.classList.add('active');
+    summaryView.style.display = 'block';
+    actionBar.style.display = 'none';
+    prevBtn.style.display = 'none';
+    nextBtn.style.display = 'none';
+    refreshViews();
+  }
+}
+
+function changeMonth(direction) {
+  currentMonth += direction;
+  if (currentMonth > 12) {
+    currentMonth = 1;
+    currentYear++;
+  } else if (currentMonth < 1) {
+    currentMonth = 12;
+    currentYear--;
+  }
+  if (currentYear < START_YEAR) currentYear = START_YEAR;
+  if (currentYear > END_YEAR) currentYear = END_YEAR;
+  refreshViews();
+}
+
+function buildMonthView(year, month) {
+  monthContainer.innerHTML = ''; // clear
+  monthYearLabel.textContent = `${MONTH_NAMES[month - 1]} ${year}`;
+
+  const firstDayOfMonth = new Date(year, month - 1, 1).getDay(); // 0=Sun, 6=Sat
+  const daysInMonth = new Date(year, month, 0).getDate();
+
+  const dayHeaders = document.createElement('div');
+  dayHeaders.classList.add('calendar-grid');
+  DAY_NAMES.forEach(day => {
+    const header = document.createElement('div');
+    header.classList.add('day-header');
+    header.textContent = day;
+    dayHeaders.appendChild(header);
+  });
+  monthContainer.appendChild(dayHeaders);
+
+  const grid = document.createElement('div');
+  grid.classList.add('calendar-grid');
+
+  // Add empty cells for the start of the month
+  for (let i = 0; i < firstDayOfMonth; i++) {
+    const emptyCell = document.createElement('div');
+    emptyCell.classList.add('empty-cell');
+    grid.appendChild(emptyCell);
   }
 
-  for(let d=1; d<=daysInMonth; d++){
-    const dateStr = iso(y,m,d);
-    const cell = document.createElement('div');
-    cell.className = 'day-cell';
-    cell.dataset.date = dateStr;
+  // Add day cells
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, month - 1, day);
+    const dayCell = document.createElement('div');
+    dayCell.classList.add('day-cell');
+    
+    // Add day number
+    const dayNumber = document.createElement('span');
+    dayNumber.classList.add('day-number');
+    dayNumber.textContent = day;
+    dayCell.appendChild(dayNumber);
 
-    const dow = new Date(y,m-1,d).getDay();
-    if(dow===0 || dow===6){
-      // weekend: black and blank
-      cell.classList.add('weekend');
-      cell.textContent = '';
-    } else {
-      if(schedule[dateStr]){
-        cell.classList.add(schedule[dateStr]);
-        cell.textContent = schedule[dateStr];
+    // Check for weekend
+    if (date.getDay() === 0 || date.getDay() === 6) {
+      dayCell.classList.add('weekend');
+    }
+
+    // Add status label if saved
+    const dateISO = iso(year, month, day);
+    if (schedule[dateISO]) {
+      dayCell.classList.add(schedule[dateISO]);
+      const statusLabel = document.createElement('span');
+      statusLabel.classList.add('day-label');
+      statusLabel.textContent = schedule[dateISO];
+      dayCell.appendChild(statusLabel);
+    }
+
+    dayCell.addEventListener('click', () => {
+      if (dayCell.classList.contains('weekend')) return;
+      if (selectedStatus === "CLEARMONTH") { return; }
+      
+      const prevStatus = schedule[dateISO];
+      schedule[dateISO] = selectedStatus;
+      if (selectedStatus) {
+        dayCell.classList.remove(prevStatus);
+        dayCell.classList.add(selectedStatus);
+        
+        // Remove and re-add label to prevent duplicates
+        const existingLabel = dayCell.querySelector('.day-label');
+        if (existingLabel) { existingLabel.remove(); }
+        const newLabel = document.createElement('span');
+        newLabel.classList.add('day-label');
+        newLabel.textContent = selectedStatus;
+        dayCell.appendChild(newLabel);
       } else {
-        cell.textContent = d;
+        delete schedule[dateISO];
+        dayCell.classList.remove(prevStatus);
+        const existingLabel = dayCell.querySelector('.day-label');
+        if (existingLabel) { existingLabel.remove(); }
       }
-      // attach click/drag only on month (editable) view -- handlers exist but Year view won't be editable
-      cell.addEventListener('click', ()=> onCellClick(cell));
-      // basic drag UX
-      cell.addEventListener('mousedown', ()=> startDrag(cell));
-      cell.addEventListener('mouseenter', ()=> hoverDrag(cell));
-      cell.addEventListener('mouseup', ()=> endDrag());
-      // touch
-      cell.addEventListener('touchstart', ()=> startDrag(cell), {passive:true});
-      cell.addEventListener('touchend', ()=> endDrag(), {passive:true});
-    }
+      saveSchedule();
+    });
 
-    // highlight today
-    const td = new Date();
-    if(y===td.getFullYear() && m===td.getMonth()+1 && d===td.getDate()){
-      cell.classList.add('today');
-    }
-
-    grid.appendChild(cell);
+    grid.appendChild(dayCell);
   }
-
-  card.appendChild(grid);
-  return card;
+  monthContainer.appendChild(grid);
 }
 
-// build the month view (single month)
-function buildMonthView(y,m){
-  monthContainer.innerHTML = '';
-  const card = renderMonthCard(y,m);
-  monthContainer.appendChild(card);
-  monthYearLabel.textContent = `${monthName(m)} ${y}`;
-  currentYear = y; currentMonth = m;
-}
-
-// build the year view (12 mini months)
-function buildYearView(y){
+function buildYearView(year) {
   yearContainer.innerHTML = '';
-  monthYearLabel.textContent = `${y}`;
-  for(let mo=1; mo<=12; mo++){
-    const c = renderMonthCard(y,mo);
-    c.classList.add('year-card');
-    // remove editable handlers for year view: clone without events (read-only)
-    // (renderMonthCard attached handlers; to ensure read-only, we will strip events)
-    // cloning node without listeners:
-    const clone = c.cloneNode(true);
-    // replace element with clone (listeners will be removed)
-    yearContainer.appendChild(clone);
+  monthYearLabel.textContent = year;
+
+  for (let m = 1; m <= 12; m++) {
+    const card = document.createElement('div');
+    card.classList.add('year-month-card');
+    const monthHeader = document.createElement('h4');
+    monthHeader.textContent = MONTH_NAMES[m - 1];
+    card.appendChild(monthHeader);
+
+    const grid = document.createElement('div');
+    grid.classList.add('calendar-grid');
+    grid.style.gap = '2px';
+    const daysInMonth = new Date(year, m, 0).getDate();
+    const firstDayOfMonth = new Date(year, m-1, 1).getDay();
+
+    // Add empty cells
+    for(let i=0; i<firstDayOfMonth; i++){
+      const empty = document.createElement('div');
+      empty.classList.add('empty-cell');
+      empty.style.minHeight = '10px';
+      grid.appendChild(empty);
+    }
+    
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dayCell = document.createElement('div');
+      dayCell.classList.add('day-cell');
+      dayCell.style.minHeight = '10px';
+      dayCell.style.padding = '5px';
+      
+      const date = new Date(year, m-1, d);
+      if (date.getDay() === 0 || date.getDay() === 6) {
+        dayCell.classList.add('weekend');
+      }
+
+      const dateISO = iso(year, m, d);
+      if (schedule[dateISO]) {
+        dayCell.classList.add(schedule[dateISO]);
+      }
+      grid.appendChild(dayCell);
+    }
+    card.appendChild(grid);
+    yearContainer.appendChild(card);
   }
 }
 
-// --- cell interactions (month editable only) ---
-let dragging = false;
-let dragSet = new Set();
-
-function onCellClick(cell){
-  // only allow edits when Month tab is active
-  if(!tabMonth.classList.contains('active')) return;
-  if(!cell.dataset.date) return;
-  if(selectedStatus === null) return;
-  const key = cell.dataset.date;
-  if(selectedStatus === '') { // Clear single
-    delete schedule[key];
-  } else {
-    schedule[key] = selectedStatus;
-  }
-  saveSchedule();
-  refreshViews();
-}
-
-// drag selection helpers (simple)
-function startDrag(cell){
-  if(!tabMonth.classList.contains('active')) return;
-  if(!cell || cell.classList.contains('weekend')) return;
-  dragging = true;
-  dragSet.clear();
-  hoverDrag(cell);
-}
-function hoverDrag(cell){
-  if(!dragging) return;
-  if(cell.classList.contains('weekend')) return;
-  // visual highlight while dragging
-  cell.style.outline = '3px dashed rgba(0,0,0,0.12)';
-  dragSet.add(cell);
-}
-function endDrag(){
-  if(!dragging) return;
-  dragSet.forEach(c=>{
-    const d = c.dataset.date;
-    if(selectedStatus === '') delete schedule[d];
-    else schedule[d] = selectedStatus;
-    c.style.outline = '';
-  });
-  dragSet.clear();
-  dragging = false;
-  saveSchedule();
-  refreshViews();
-}
-
-// clear month
-clearMonthBtn.addEventListener('click', ()=>{
-  if(!confirm(`Clear all statuses for ${monthName(currentMonth)} ${currentYear}?`)) return;
-  Object.keys(schedule).forEach(k=>{
-    const [yy,mm] = k.split('-').map(Number);
-    if(yy===currentYear && mm===currentMonth) delete schedule[k];
-  });
-  saveSchedule();
-  refreshViews();
-});
-
-// prev/next navigation behaviour
-prevBtn.addEventListener('click', ()=>{
-  if(tabMonth.classList.contains('active')){
-    let y=currentYear, m=currentMonth-1;
-    if(m<1){ m=12; y--; if(y<START_YEAR){ y=START_YEAR; m=1; } }
-    buildMonthView(y,m);
-  } else if(tabYear.classList.contains('active')){
-    currentYear = Math.max(START_YEAR, currentYear-1);
-    buildYearView(currentYear);
-  } else {
-    // summary prev month
-    let y = parseInt(summaryLabel.dataset.year) || currentYear;
-    let m = parseInt(summaryLabel.dataset.month) || currentMonth;
-    m--; if(m<1){ m=12; y--; if(y<START_YEAR){ y=START_YEAR; m=1; } }
-    updateSummary(y,m);
-  }
-});
-nextBtn.addEventListener('click', ()=>{
-  if(tabMonth.classList.contains('active')){
-    let y=currentYear, m=currentMonth+1;
-    if(m>12){ m=1; y++; if(y>END_YEAR){ y=END_YEAR; m=12; } }
-    buildMonthView(y,m);
-  } else if(tabYear.classList.contains('active')){
-    currentYear = Math.min(END_YEAR, currentYear+1);
-    buildYearView(currentYear);
-  } else {
-    let y = parseInt(summaryLabel.dataset.year) || currentYear;
-    let m = parseInt(summaryLabel.dataset.month) || currentMonth;
-    m++; if(m>12){ m=1; y++; if(y>END_YEAR){ y=END_YEAR; m=12; } }
-    updateSummary(y,m);
-  }
-});
-
-// summary arrows
-summaryPrev.addEventListener('click', ()=> {
-  let y = parseInt(summaryLabel.dataset.year) || currentYear;
-  let m = parseInt(summaryLabel.dataset.month) || currentMonth;
-  m--; if(m<1){ m=12; y--; }
-  updateSummary(y,m);
-  currentYear=y; currentMonth=m;
-});
-summaryNext.addEventListener('click', ()=> {
-  let y = parseInt(summaryLabel.dataset.year) || currentYear;
-  let m = parseInt(summaryLabel.dataset.month) || currentMonth;
-  m++; if(m>12){ m=1; y++; }
-  updateSummary(y,m);
-  currentYear=y; currentMonth=m;
-});
-
-// tabs
-tabMonth.addEventListener('click', ()=> showTab('month'));
-tabYear.addEventListener('click', ()=> showTab('year'));
-tabSummary.addEventListener('click', ()=> showTab('summary'));
-function showTab(t){
-  tabMonth.classList.remove('active'); tabYear.classList.remove('active'); tabSummary.classList.remove('active');
-  monthView.style.display='none'; yearView.style.display='none'; summaryView.style.display='none';
-  if(t==='month'){ tabMonth.classList.add('active'); monthView.style.display='block'; actionBar.style.display='flex'; buildMonthView(currentYear,currentMonth); }
-  if(t==='year'){ tabYear.classList.add('active'); yearView.style.display='block'; actionBar.style.display='flex'; buildYearView(currentYear); }
-  if(t==='summary'){ tabSummary.classList.add('active'); summaryView.style.display='block'; actionBar.style.display='none'; updateSummary(currentYear,currentMonth); }
-  refreshViews();
-}
-
-// status buttons (select status)
-document.querySelectorAll('.status-btn').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    const s = btn.dataset.status;
-    if(s === 'CLEARMONTH') { /* handled above */ return; }
-    selectedStatus = (s === '') ? '' : s;
-    // highlight selection
-    document.querySelectorAll('.status-btn').forEach(b=>b.style.boxShadow='none');
-    btn.style.boxShadow = '0 0 0 3px rgba(0,0,0,0.06) inset';
-  });
-});
-
-// clear single (select CLEAR then click a day) - we keep as a toggle that sets selectedStatus=''
-clearSingleBtn.addEventListener('click', ()=>{
-  selectedStatus = '';
-  document.querySelectorAll('.status-btn').forEach(b=>b.style.boxShadow='none');
-  clearSingleBtn.style.boxShadow = '0 0 0 3px rgba(0,0,0,0.06) inset';
-});
-
-// --- summary ---
-function updateSummary(y,m){
-  summaryLabel.textContent = `${monthName(m)} ${y}`;
-  summaryLabel.dataset.year = y; summaryLabel.dataset.month = m;
-  const counts = {WFH:0,OFFC:0,TRAIN:0,EL:0,SL:0,PH:0};
-  Object.keys(schedule).forEach(k=>{
-    const [yy,mm] = k.split('-').map(Number);
-    if(yy===y && mm===m && counts[schedule[k]]!==undefined) counts[schedule[k]]++;
-  });
+function updateSummary(year, month) {
   summaryPanel.innerHTML = '';
-  Object.keys(counts).forEach(k=>{
-    const row = document.createElement('div'); row.className='summary-row';
-    row.innerHTML = `<div>${k}</div><div>${counts[k]}</div>`;
-    summaryPanel.appendChild(row);
-  });
+  if (month < 1) { month = 12; year--; }
+  if (month > 12) { month = 1; year++; }
+  currentYear = year;
+  currentMonth = month;
+  
+  summaryLabel.textContent = `${MONTH_NAMES[month-1]} ${year}`;
+  const counts = STATUS_KEYS.reduce((acc, status) => ({ ...acc, [status]: 0 }), {});
+  
+  const daysInMonth = new Date(year, month, 0).getDate();
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateISO = iso(year, month, day);
+    const status = schedule[dateISO];
+    if (status && counts.hasOwnProperty(status)) {
+      counts[status]++;
+    }
+  }
+
+  for (const status in counts) {
+    const item = document.createElement('div');
+    item.classList.add('summary-item');
+    item.innerHTML = `<span>${status}</span><span>${counts[status]}</span>`;
+    summaryPanel.appendChild(item);
+  }
 }
 
-// --- voice integration (Web Speech API) ---
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-if(SpeechRecognition){
-  const rec = new SpeechRecognition();
-  rec.lang = 'en-US'; rec.interimResults = false;
-  voiceBtn.addEventListener('click', ()=> { try{ rec.start(); voiceBtn.textContent='🎤 Listening...'; }catch(e){} });
-  rec.addEventListener('result', e=>{
-    const text = e.results[0][0].transcript.toLowerCase();
-    voiceBtn.textContent = '🎤 Voice';
-    parseVoice(text);
-  });
-  rec.addEventListener('end', ()=> { voiceBtn.textContent = '🎤 Voice'; });
-} else { voiceBtn.disabled=true; voiceBtn.title='Voice not supported in this browser'; }
+function clearMonth() {
+  const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateISO = iso(currentYear, currentMonth, day);
+    delete schedule[dateISO];
+  }
+  saveSchedule();
+  refreshViews();
+}
 
-function parseVoice(text){
-  // detect status
-  const map = {
-    'wfh':'WFH','work from home':'WFH',
-    'office':'OFFC','offc':'OFFC',
-    'train':'TRAIN','training':'TRAIN',
-    'leave':'EL','el':'EL',
-    'sick':'SL','sick leave':'SL',
-    'holiday':'PH','public holiday':'PH','ph':'PH'
+// voice recognition logic
+function startVoiceRecognition() {
+  if (!('webkitSpeechRecognition' in window)) {
+    alert('Voice recognition not supported. Try Chrome on Android.');
+    return;
+  }
+  const recognition = new webkitSpeechRecognition();
+  recognition.lang = 'en-US';
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  recognition.start();
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript.toLowerCase();
+    parseVoice(transcript);
   };
-  let found = null;
-  for(const k in map) if(text.includes(k)) { found = map[k]; break; }
-  if(!found){ alert('Status not detected. Say: "Next week WFH" or "2025-09-22 to 2025-09-26 WFH"'); return; }
-  selectedStatus = found;
+  recognition.onerror = (event) => {
+    console.error('Speech recognition error:', event.error);
+    alert('Voice recognition error. Please try again.');
+  };
+}
 
-  // ISO range
-  const isoRange = text.match(/(\d{4}-\d{2}-\d{2})\s*(?:to|-)\s*(\d{4}-\d{2}-\d{2})/);
-  if(isoRange){
-    const s = new Date(isoRange[1]), e = new Date(isoRange[2]);
-    let cur = new Date(s);
-    while(cur <= e){
-      const dow = cur.getDay();
-      if(dow!==0 && dow!==6) schedule[iso(cur.getFullYear(),cur.getMonth()+1,cur.getDate())] = selectedStatus;
-      cur.setDate(cur.getDate()+1);
+function parseVoice(text) {
+  const statusPattern = STATUS_KEYS.map(s => s.toLowerCase()).join('|');
+
+  // Handle "next week..."
+  const nextWeekMatch = text.match(new RegExp(`next week (${statusPattern})`));
+  if (nextWeekMatch) {
+    const selectedStatus = nextWeekMatch[1].toUpperCase();
+    const today = new Date();
+    const nextSunday = new Date(today);
+    nextSunday.setDate(today.getDate() + (7 - today.getDay()));
+    for (let i = 0; i < 5; i++) {
+      const d = new Date(nextSunday);
+      d.setDate(nextSunday.getDate() + i + 1);
+      const dateISO = iso(d.getFullYear(), d.getMonth() + 1, d.getDate());
+      schedule[dateISO] = selectedStatus;
     }
     saveSchedule(); refreshViews(); return;
   }
-  const isoSingle = text.match(/(\d{4}-\d{2}-\d{2})/);
-  if(isoSingle){
-    const d = new Date(isoSingle[1]);
-    if(d.getDay()!==0 && d.getDay()!==6) schedule[iso(d.getFullYear(),d.getMonth()+1,d.getDate())] = selectedStatus;
-    saveSchedule(); refreshViews(); return;
-  }
-  if(text.includes('next week')){
-    const now = new Date(); const nextSunday = new Date(now); nextSunday.setDate(now.getDate() + (7 - now.getDay()));
-    for(let i=1;i<=5;i++){
-      const d = new Date(nextSunday); d.setDate(nextSunday.getDate()+i);
-      schedule[iso(d.getFullYear(),d.getMonth()+1,d.getDate())] = selectedStatus;
+  
+  // Handle "1 to 5 march..."
+  const rangeMatch = text.match(/(\d+)\s*(?:to|-)\s*(\d+)\s*(\w+)\s*(\w+)?/);
+  if (rangeMatch) {
+    const fromDay = parseInt(rangeMatch[1]);
+    const toDay = parseInt(rangeMatch[2]);
+    const monthName = rangeMatch[3].charAt(0).toUpperCase() + rangeMatch[3].slice(1);
+    const monthIdx = MONTH_NAMES.indexOf(monthName);
+    const status = (rangeMatch[4] || "").toUpperCase();
+
+    if (monthIdx !== -1 && fromDay <= toDay && status) {
+      for (let day = fromDay; day <= toDay; day++) {
+        const dateISO = iso(currentYear, monthIdx + 1, day);
+        schedule[dateISO] = status;
+      }
+      saveSchedule(); refreshViews(); return;
     }
-    saveSchedule(); refreshViews(); return;
-  }
-  // weekday range like "monday to friday"
-  const wdRange = text.match(/(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\s*(?:to|-)\s*(sunday|monday|tuesday|wednesday|thursday|friday|saturday)/);
-  if(wdRange){
-    const mapDay = { sunday:0,monday:1,tuesday:2,wednesday:3,thursday:4,friday:5,saturday:6 };
-    const sIdx = mapDay[wdRange[1]]; const eIdx = mapDay[wdRange[2]];
-    const base = new Date(); const sunday = new Date(base); sunday.setDate(base.getDate() - base.getDay());
-    for(let i=sIdx;i<=eIdx;i++){
-      const d = new Date(sunday); d.setDate(sunday.getDate()+i);
-      if(d.getDay()!==0 && d.getDay()!==6) schedule[iso(d.getFullYear(),d.getMonth()+1,d.getDate())] = selectedStatus;
-    }
-    saveSchedule(); refreshViews(); return;
   }
 
-  alert('Could not parse dates from voice. Try "next week WFH" or "2025-09-22 to 2025-09-26 WFH".');
+  // Handle "mark 10 april train" or similar
+  const markSingleDayMatch = text.match(new RegExp(`(?:mark|on)?\\s*(\\d+)(?:st|nd|rd|th)?\\s*(${MONTH_NAMES.map(m=>m.toLowerCase()).join('|')})\\s*(${statusPattern})`));
+  if (markSingleDayMatch) {
+    const day = parseInt(markSingleDayMatch[1]);
+    const monthName = markSingleDayMatch[2];
+    const status = markSingleDayMatch[3].toUpperCase();
+    const monthIdx = MONTH_NAMES.map(m=>m.toLowerCase()).indexOf(monthName);
+    if(monthIdx !== -1 && !isNaN(day)) {
+      const dateISO = iso(currentYear, monthIdx + 1, day);
+      schedule[dateISO] = status;
+      saveSchedule(); refreshViews(); return;
+    }
+  }
+
+  alert('Could not parse dates from voice. Try "next week WFH", "1 to 5 March OFFC", or "Mark 10 April TRAIN".');
+}
+
+
+// helper function for ISO format
+function iso(year, month, day) {
+  const d = new Date(year, month - 1, day);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
 }
 
 // refresh views logic
-function refreshViews(){
-  if(tabMonth.classList.contains('active')) buildMonthView(currentYear,currentMonth);
-  if(tabYear.classList.contains('active')) buildYearView(currentYear);
-  if(tabSummary.classList.contains('active')) updateSummary(currentYear,currentMonth);
-  // actionBar visible only on month & year tabs
-  actionBar.style.display = tabSummary.classList.contains('active') ? 'none' : 'flex';
+function refreshViews() {
+  if (tabMonth.classList.contains('active')) buildMonthView(currentYear, currentMonth);
+  if (tabYear.classList.contains('active')) buildYearView(currentYear);
+  if (tabSummary.classList.contains('active')) updateSummary(currentYear, currentMonth);
 }
 
 // initialize
-function initApp(){
+function initApp() {
   loadSchedule();
   const now = new Date();
-  // start on device's current month/year but clamp to allowed range
-  if(now.getFullYear() < START_YEAR) { currentYear = START_YEAR; currentMonth = 1; }
-  else if(now.getFullYear() > END_YEAR) { currentYear = START_YEAR; currentMonth = 1; }
-  else { currentYear = now.getFullYear(); currentMonth = now.getMonth()+1; }
-
-  buildMonthView(currentYear,currentMonth);
-  buildYearView(currentYear);
-  updateSummary(currentYear,currentMonth);
-  showTab('month');
+  if (now.getFullYear() < START_YEAR) {
+    currentYear = START_YEAR;
+    currentMonth = 1;
+  }
+  refreshViews();
 }
+
 initApp();
