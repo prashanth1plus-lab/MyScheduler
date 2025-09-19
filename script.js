@@ -1,26 +1,23 @@
-/* WF OFFICE PLANNER - script.js
-   - Multi-year calendar 2025..2040
+/* WF OFFICE PLANNER - clean, fixed version
+   - years: 2025..2040
    - persistent localStorage
-   - status-button selection + clear
-   - multi-day drag select
-   - voice command parsing (basic)
-   - summary view with prev/next arrows
+   - status buttons (hidden on summary tab)
+   - Clear single / Clear month
+   - month/year navigation
+   - voice commands (basic patterns)
+   - weekends black and blank
 */
 
-// CONFIG
-const START_YEAR = 2025;
-const END_YEAR = 2040;
-const statuses = ["WFH","OFFC","TRAIN","EL","SL","PH"];
+const START_YEAR = 2025, END_YEAR = 2040;
+const STATUS_KEYS = ["WFH","OFFC","TRAIN","EL","SL","PH"];
 
-// State
-let schedule = {}; // { "YYYY-MM-DD": "WFH", ... }
-let selectedStatus = null;
-let dragSelecting = false;
-let dragCells = new Set();
+// state
+let schedule = {};              // { "YYYY-MM-DD": "WFH", ... }
+let selectedStatus = null;      // e.g. "WFH" or "" for clear single
 let currentYear = new Date().getFullYear();
 let currentMonth = new Date().getMonth() + 1; // 1..12
 
-// Elements
+// DOM refs
 const monthContainer = document.getElementById('monthContainer');
 const yearContainer = document.getElementById('yearContainer');
 const monthView = document.getElementById('monthView');
@@ -32,39 +29,40 @@ const nextBtn = document.getElementById('nextBtn');
 const tabMonth = document.getElementById('tabMonth');
 const tabYear = document.getElementById('tabYear');
 const tabSummary = document.getElementById('tabSummary');
+const actionBar = document.getElementById('actionBar');
 const summaryLabel = document.getElementById('summaryLabel');
 const summaryPanel = document.getElementById('summaryPanel');
 const summaryPrev = document.getElementById('summaryPrev');
 const summaryNext = document.getElementById('summaryNext');
+const voiceBtn = document.getElementById('voiceBtn');
 
-// Load schedule from localStorage
+
+// localStorage helpers
 function loadSchedule(){
   try{
-    const raw = localStorage.getItem('wf_schedule_v1');
+    const raw = localStorage.getItem('wf_schedule_v2');
     if(raw) schedule = JSON.parse(raw);
-  }catch(e){ console.warn("load error",e); schedule = {}; }
+  }catch(e){ console.warn(e); schedule = {}; }
 }
 function saveSchedule(){
-  localStorage.setItem('wf_schedule_v1', JSON.stringify(schedule));
+  try{ localStorage.setItem('wf_schedule_v2', JSON.stringify(schedule)); }catch(e){ console.warn(e); }
 }
 
-// Utilities
+// helpers
 function pad(n){ return n.toString().padStart(2,'0'); }
 function iso(y,m,d){ return `${y}-${pad(m)}-${pad(d)}`; }
-function monthName(m){ return new Date(2000, m-1,1).toLocaleString('default',{month:'long'}).toUpperCase(); }
+function monthName(m){ return new Date(2000,m-1,1).toLocaleString('default',{month:'long'}); }
 
-// Render one month card (used in month view)
+// render a single month card (full grid)
 function renderMonthCard(y,m){
   const card = document.createElement('div');
   card.className = 'month-card';
-  const title = document.createElement('div');
-  title.className = 'month-title';
-  title.textContent = `${monthName(m)} ${y}`;
+  const title = document.createElement('div'); title.className='month-title'; title.textContent = `${monthName(m)} ${y}`;
   card.appendChild(title);
 
-  const grid = document.createElement('div');
-  grid.className = 'calendar-grid';
-  // week day headers
+  const grid = document.createElement('div'); grid.className='calendar-grid';
+
+  // headers
   ["SUN","MON","TUE","WED","THU","FRI","SAT"].forEach(h=>{
     const hcell = document.createElement('div');
     hcell.className = 'day-cell';
@@ -75,41 +73,48 @@ function renderMonthCard(y,m){
 
   const first = new Date(y, m-1, 1);
   const firstDow = first.getDay(); // 0..6
-  const days = new Date(y, m, 0).getDate();
+  const daysInMonth = new Date(y, m, 0).getDate();
 
-  // blank cells before first day
+  // blanks before first day
   for(let i=0;i<firstDow;i++){
-    const blank = document.createElement('div');
-    blank.className = 'day-cell';
-    blank.textContent = '';
-    grid.appendChild(blank);
+    const empty = document.createElement('div');
+    empty.className = 'day-cell';
+    empty.textContent = '';
+    grid.appendChild(empty);
   }
 
-  for(let d=1; d<=days; d++){
+  for(let d=1; d<=daysInMonth; d++){
     const dateStr = iso(y,m,d);
     const cell = document.createElement('div');
     cell.className = 'day-cell';
     cell.dataset.date = dateStr;
-    cell.textContent = (schedule[dateStr] || d);
-    // weekend
+
     const dow = new Date(y,m-1,d).getDay();
+    // weekend: black and blank
     if(dow===0 || dow===6){
       cell.classList.add('weekend');
-      cell.textContent = ''; // blank weekend per your requirement
+      cell.textContent = '';
+      // do not attach editable handlers
     } else {
       if(schedule[dateStr]){
         cell.classList.add(schedule[dateStr]);
         cell.textContent = schedule[dateStr];
+      } else {
+        cell.textContent = d; // show day number if no status
       }
-      // enable click & drag
-      cell.addEventListener('mousedown', e => { if(!cell.classList.contains('weekend')) startDrag(cell); });
-      cell.addEventListener('mouseenter', e => { if(dragSelecting && !cell.classList.contains('weekend')) hoverDrag(cell); });
-      cell.addEventListener('mouseup', e => { if(dragSelecting) endDrag(); });
-      cell.addEventListener('click', e => { if(!dragSelecting) singleClick(cell); });
-      // touch events
-      cell.addEventListener('touchstart', e => { if(!cell.classList.contains('weekend')) startDrag(cell); }, {passive:true});
-      cell.addEventListener('touchmove', e => { }, {passive:true});
-      cell.addEventListener('touchend', e => { if(dragSelecting) endDrag(); });
+      // events
+      cell.addEventListener('click', ()=> onCellClick(cell));
+      cell.addEventListener('mousedown', ()=> startDrag(cell));
+      cell.addEventListener('mouseenter', ()=> hoverDrag(cell));
+      cell.addEventListener('mouseup', ()=> endDrag());
+      // touch
+      cell.addEventListener('touchstart', ()=> startDrag(cell), {passive:true});
+      cell.addEventListener('touchend', ()=> endDrag(), {passive:true});
+    }
+    // highlight today if matches
+    const today = new Date();
+    if(y===today.getFullYear() && m===today.getMonth()+1 && d===today.getDate()){
+      cell.classList.add('today');
     }
     grid.appendChild(cell);
   }
@@ -118,183 +123,89 @@ function renderMonthCard(y,m){
   return card;
 }
 
-// Build month view (single month)
+// build views
 function buildMonthView(y,m){
   monthContainer.innerHTML = '';
   const card = renderMonthCard(y,m);
   monthContainer.appendChild(card);
   monthYearLabel.textContent = `${monthName(m)} ${y}`;
+  // store current visible
+  currentYear = y; currentMonth = m;
 }
-
-// Build year view (12 months for a year)
 function buildYearView(y){
   yearContainer.innerHTML = '';
-  const header = document.createElement('h2');
-  header.textContent = y;
-  const container = document.createElement('div');
-  container.className = 'year-grid';
-  // create 12 months in groups (use existing renderMonthCard but smaller)
+  monthYearLabel.textContent = `${y}`;
   for(let mo=1; mo<=12; mo++){
     const card = renderMonthCard(y,mo);
-    // style smaller for year grid
     card.classList.add('year-card');
     yearContainer.appendChild(card);
   }
-  monthYearLabel.textContent = y;
 }
 
-// Single cell click (when not dragging)
-function singleClick(cell){
-  const dateStr = cell.dataset.date;
-  if(!dateStr) return;
+// cell click handling
+let dragging = false;
+let dragSet = new Set();
+
+function onCellClick(cell){
+  if(dragging) return; // ignore single click if dragging
   if(selectedStatus === null) return;
+  const d = cell.dataset.date;
+  if(!d) return;
   if(selectedStatus === ''){ // clear single
-    delete schedule[dateStr];
-    saveSchedule();
-    refreshViews();
-    return;
+    delete schedule[d];
+  } else {
+    schedule[d] = selectedStatus;
   }
-  schedule[dateStr] = selectedStatus;
   saveSchedule();
   refreshViews();
 }
 
-// Drag helpers
+// drag functions for multi-day select
 function startDrag(cell){
-  dragSelecting = true;
-  dragCells.clear();
+  if(!cell || cell.classList.contains('weekend')) return;
+  dragging = true;
+  dragSet.clear();
   hoverDrag(cell);
 }
 function hoverDrag(cell){
-  cell.classList.add('selected-temp');
-  dragCells.add(cell);
+  if(!dragging) return;
+  if(!cell || cell.classList.contains('weekend')) return;
+  dragSet.add(cell);
+  cell.style.outline = '3px dashed rgba(0,0,0,0.12)';
 }
 function endDrag(){
-  // apply selectedStatus to all dragCells
-  dragCells.forEach(c => {
-    const dateStr = c.dataset.date;
-    if(!dateStr) return;
-    if(selectedStatus === '') delete schedule[dateStr];
-    else schedule[dateStr] = selectedStatus;
+  if(!dragging) return;
+  dragSet.forEach(c=>{
+    const d = c.dataset.date;
+    if(selectedStatus === '') delete schedule[d]; else schedule[d] = selectedStatus;
+    c.style.outline = '';
   });
-  dragSelecting = false;
-  dragCells.forEach(c => c.classList.remove('selected-temp'));
-  dragCells.clear();
+  dragSet.clear();
+  dragging = false;
   saveSchedule();
   refreshViews();
-}
-
-// Refresh current views
-function refreshViews(){
-  if(monthView.style.display !== 'none'){
-    buildMonthView(parseInt(currentYear), parseInt(currentMonth));
-  }
-  if(yearView.style.display !== 'none'){
-    buildYearView(parseInt(currentYear));
-  }
-  updateSummaryPanel();
-  highlightSelectedStatusButton();
-}
-
-// Status selection
-document.querySelectorAll('.status-btn').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    const s = btn.dataset.status;
-    // CLEAR MONTH button special
-    if(s === 'CLEARMONTH'){
-      if(!confirm('Clear all entries for this month?')) return;
-      clearMonth(parseInt(currentYear), parseInt(currentMonth));
-      return;
-    }
-    selectedStatus = s === '' ? '' : s;
-    highlightSelectedStatusButton();
-  });
-});
-function highlightSelectedStatusButton(){
-  document.querySelectorAll('.status-btn').forEach(b=>{
-    b.style.outline = (b.dataset.status === selectedStatus) ? '3px solid #333' : 'none';
-  });
 }
 
 // clear month
 function clearMonth(y,m){
-  const keys = Object.keys(schedule);
-  keys.forEach(k=>{
-    const [yy,mm,dd] = k.split('-').map(Number);
+  if(!confirm(`Clear all statuses for ${monthName(m)} ${y}?`)) return;
+  Object.keys(schedule).forEach(k=>{
+    const [yy,mm] = k.split('-').map(Number);
     if(yy===y && mm===m) delete schedule[k];
   });
   saveSchedule();
   refreshViews();
 }
 
-// Tabs
-tabMonth.addEventListener('click', ()=>{ showTab('month'); });
-tabYear.addEventListener('click', ()=>{ showTab('year'); });
-tabSummary.addEventListener('click', ()=>{ showTab('summary'); });
-function showTab(t){
-  tabMonth.classList.remove('active');
-  tabYear.classList.remove('active');
-  tabSummary.classList.remove('active');
-  if(t==='month'){ tabMonth.classList.add('active'); monthView.style.display='block'; yearView.style.display='none'; summaryView.style.display='none'; }
-  if(t==='year'){ tabYear.classList.add('active'); monthView.style.display='none'; yearView.style.display='block'; summaryView.style.display='none'; }
-  if(t==='summary'){ tabSummary.classList.add('active'); monthView.style.display='none'; yearView.style.display='none'; summaryView.style.display='block'; }
-  refreshViews();
-}
-
-// Prev/Next navigation (for month/year depending on tab)
-prevBtn.addEventListener('click', ()=>{
-  if(tabMonth.classList.contains('active')){
-    // go previous month
-    let y = currentYear, m = currentMonth-1;
-    if(m<1){ m=12; y--;}
-    currentYear = y; currentMonth = m;
-    buildMonthView(y,m);
-  } else if(tabYear.classList.contains('active')){
-    currentYear = parseInt(currentYear)-1;
-    buildYearView(currentYear);
-  } else {
-    // summary - prev month
-    let [y,m] = [parseInt(summaryLabel.dataset.year), parseInt(summaryLabel.dataset.month)];
-    m--; if(m<1){ m=12; y--; }
-    updateSummary(y,m);
-  }
-});
-nextBtn.addEventListener('click', ()=>{
-  if(tabMonth.classList.contains('active')){
-    let y = currentYear, m = currentMonth+1;
-    if(m>12){ m=1; y++; }
-    currentYear = y; currentMonth = m;
-    buildMonthView(y,m);
-  } else if(tabYear.classList.contains('active')){
-    currentYear = parseInt(currentYear)+1;
-    buildYearView(currentYear);
-  } else {
-    let [y,m] = [parseInt(summaryLabel.dataset.year), parseInt(summaryLabel.dataset.month)];
-    m++; if(m>12){ m=1; y++; }
-    updateSummary(y,m);
-  }
-});
-
-// SUMMARY panel
-summaryPrev.addEventListener('click', ()=>{
-  let y = parseInt(summaryLabel.dataset.year), m = parseInt(summaryLabel.dataset.month);
-  m--; if(m<1){ m=12; y--; }
-  updateSummary(y,m);
-});
-summaryNext.addEventListener('click', ()=>{
-  let y = parseInt(summaryLabel.dataset.year), m = parseInt(summaryLabel.dataset.month);
-  m++; if(m>12){ m=1; y++; }
-  updateSummary(y,m);
-});
+// summary
 function updateSummary(y,m){
   summaryLabel.textContent = `${monthName(m)} ${y}`;
   summaryLabel.dataset.year = y; summaryLabel.dataset.month = m;
-  // compute counts for month
-  let counts = {WFH:0,OFFC:0,TRAIN:0,EL:0,SL:0,PH:0};
-  for(const k in schedule){
-    const [yy,mm,dd] = k.split('-').map(Number);
+  const counts = {WFH:0,OFFC:0,TRAIN:0,EL:0,SL:0,PH:0};
+  Object.keys(schedule).forEach(k=>{
+    const [yy,mm] = k.split('-').map(Number);
     if(yy===y && mm===m && counts[schedule[k]]!==undefined) counts[schedule[k]]++;
-  }
+  });
   summaryPanel.innerHTML = '';
   Object.keys(counts).forEach(k=>{
     const row = document.createElement('div'); row.className='summary-row';
@@ -303,60 +214,117 @@ function updateSummary(y,m){
   });
 }
 
-// Voice integration (Web Speech API)
-const voiceBtn = document.getElementById('voiceBtn');
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-if(SpeechRecognition){
-  const recognition = new SpeechRecognition();
-  recognition.lang = 'en-US';
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
-
-  voiceBtn.addEventListener('click', ()=> {
-    try{
-      recognition.start();
-      voiceBtn.textContent = '🎤 Listening...';
-    }catch(e){}
-  });
-
-  recognition.addEventListener('result', e=>{
-    const t = e.results[0][0].transcript.toLowerCase();
-    voiceBtn.textContent = '🎤 Voice';
-    parseVoice(t);
-  });
-  recognition.addEventListener('end', ()=> { voiceBtn.textContent = '🎤 Voice'; });
-} else {
-  voiceBtn.disabled = true; voiceBtn.title = 'Voice not supported in this browser';
+// show/hide tabs and action bar
+function showTab(tab){
+  tabMonth.classList.remove('active'); tabYear.classList.remove('active'); tabSummary.classList.remove('active');
+  monthView.style.display='none'; yearView.style.display='none'; summaryView.style.display='none';
+  if(tab==='month'){ tabMonth.classList.add('active'); monthView.style.display='block'; actionBar.style.display='flex'; buildMonthView(currentYear,currentMonth); }
+  if(tab==='year'){ tabYear.classList.add('active'); yearView.style.display='block'; actionBar.style.display='flex'; buildYearView(currentYear); }
+  if(tab==='summary'){ tabSummary.classList.add('active'); summaryView.style.display='block'; actionBar.style.display='none'; updateSummary(currentYear,currentMonth); }
 }
 
-// Basic voice parser supporting patterns:
-// - "next week WFH"
-// - "monday to friday WFH"
-// - "2025-09-22 to 2025-09-26 WFH"
-// - "2025-09-22 WFH"
-function parseVoice(text){
-  // find status word
-  const statusWords = { wfh: "WFH", offc: "OFFC", office:"OFFC", train:"TRAIN", training:"TRAIN", ph:"PH", "public holiday":"PH", el:"EL", sl:"SL", leave:"EL" };
-  let foundStatus = null;
-  for(const k in statusWords){
-    if(text.includes(k)) { foundStatus = statusWords[k]; break; }
+// navigation
+prevBtn.addEventListener('click', ()=>{
+  if(tabMonth.classList.contains('active')){
+    let y=currentYear, m=currentMonth-1;
+    if(m<1){ m=12; y--; if(y<START_YEAR) { y=START_YEAR; m=1; } }
+    currentYear=y; currentMonth=m; buildMonthView(y,m);
+  } else if(tabYear.classList.contains('active')){
+    currentYear = Math.max(START_YEAR, currentYear-1);
+    buildYearView(currentYear);
+  } else {
+    // summary
+    let y=parseInt(summaryLabel.dataset.year)||currentYear, m=parseInt(summaryLabel.dataset.month)||currentMonth;
+    m--; if(m<1){ m=12; y--; if(y<START_YEAR){ y=START_YEAR; m=1; } }
+    updateSummary(y,m);
+    currentYear=y; currentMonth=m;
   }
-  if(!foundStatus){ alert('Status not found in voice text. Say e.g. "Next week WFH"'); return; }
-  selectedStatus = foundStatus;
-  // date range patterns
+});
+nextBtn.addEventListener('click', ()=>{
+  if(tabMonth.classList.contains('active')){
+    let y=currentYear, m=currentMonth+1;
+    if(m>12){ m=1; y++; if(y>END_YEAR){ y=END_YEAR; m=12; } }
+    currentYear=y; currentMonth=m; buildMonthView(y,m);
+  } else if(tabYear.classList.contains('active')){
+    currentYear = Math.min(END_YEAR, currentYear+1);
+    buildYearView(currentYear);
+  } else {
+    let y=parseInt(summaryLabel.dataset.year)||currentYear, m=parseInt(summaryLabel.dataset.month)||currentMonth;
+    m++; if(m>12){ m=1; y++; if(y>END_YEAR){ y=END_YEAR; m=12; } }
+    updateSummary(y,m);
+    currentYear=y; currentMonth=m;
+  }
+});
+
+// summary arrows
+summaryPrev.addEventListener('click', ()=>{ let y=parseInt(summaryLabel.dataset.year), m=parseInt(summaryLabel.dataset.month); m--; if(m<1){ m=12; y--; } updateSummary(y,m); currentYear=y; currentMonth=m; });
+summaryNext.addEventListener('click', ()=>{ let y=parseInt(summaryLabel.dataset.year), m=parseInt(summaryLabel.dataset.month); m++; if(m>12){ m=1; y++; } updateSummary(y,m); currentYear=y; currentMonth=m; });
+
+// tab clicks
+tabMonth.addEventListener('click', ()=>showTab('month'));
+tabYear.addEventListener('click', ()=>showTab('year'));
+tabSummary.addEventListener('click', ()=>showTab('summary'));
+
+// status buttons
+document.querySelectorAll('.status-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const s = btn.dataset.status;
+    if(s === 'CLEARMONTH'){ clearMonth(currentYear,currentMonth); return; }
+    selectedStatus = (s === '') ? '' : s; // '' signals clear single
+    // highlight
+    document.querySelectorAll('.status-btn').forEach(b=>b.style.boxShadow='none');
+    btn.style.boxShadow = '0 0 0 3px rgba(0,0,0,0.06) inset';
+  });
+});
+
+// clear single button is implemented by selecting Clear (selectedStatus === '')
+// clear month handled separately by CLEARMONTH above
+
+// voice integration
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if(SpeechRecognition){
+  const rec = new SpeechRecognition();
+  rec.lang = 'en-US'; rec.interimResults = false;
+  voiceBtn.addEventListener('click', ()=>{ try{ rec.start(); voiceBtn.textContent='🎤 Listening...'; }catch(e){} });
+  rec.addEventListener('result', e=>{
+    const text = e.results[0][0].transcript.toLowerCase();
+    voiceBtn.textContent = '🎤 Voice';
+    parseVoice(text);
+  });
+  rec.addEventListener('end', ()=>{ voiceBtn.textContent = '🎤 Voice'; });
+} else {
+  voiceBtn.disabled=true; voiceBtn.title='Voice not supported in this browser';
+}
+
+// improved voice parser (supports several patterns)
+function parseVoice(text){
+  // status detection
+  const map = {
+    'wfh':'WFH','work from home':'WFH',
+    'office':'OFFC','offc':'OFFC',
+    'train':'TRAIN','training':'TRAIN',
+    'leave':'EL','el':'EL',
+    'sick':'SL','sick leave':'SL','sl':'SL',
+    'public holiday':'PH','holiday':'PH','ph':'PH'
+  };
+  let found = null;
+  for(const k in map) if(text.includes(k)) { found = map[k]; break; }
+  if(!found){ alert('Status not detected. Speak: "Next week WFH" or "2025-09-22 to 2025-09-26 WFH"'); return; }
+  selectedStatus = found;
+
+  // ISO date range: 2025-09-22 to 2025-09-26
   const isoRange = text.match(/(\d{4}-\d{2}-\d{2})\s*(?:to|-)\s*(\d{4}-\d{2}-\d{2})/);
   if(isoRange){
-    const start = new Date(isoRange[1]), end = new Date(isoRange[2]);
-    let cur = new Date(start);
-    while(cur<=end){
+    const s = new Date(isoRange[1]); const e = new Date(isoRange[2]);
+    let cur = new Date(s);
+    while(cur <= e){
       const dow = cur.getDay();
-      if(dow!==0 && dow!==6){
-        schedule[iso(cur.getFullYear(),cur.getMonth()+1,cur.getDate())] = selectedStatus;
-      }
+      if(dow!==0 && dow!==6) schedule[iso(cur.getFullYear(),cur.getMonth()+1,cur.getDate())] = selectedStatus;
       cur.setDate(cur.getDate()+1);
     }
     saveSchedule(); refreshViews(); return;
   }
+  // single ISO date
   const isoSingle = text.match(/(\d{4}-\d{2}-\d{2})/);
   if(isoSingle){
     const d = new Date(isoSingle[1]);
@@ -366,53 +334,52 @@ function parseVoice(text){
   // next week pattern
   if(text.includes('next week')){
     const now = new Date();
-    // start from next sunday
-    const nextSunday = new Date(now);
-    nextSunday.setDate(now.getDate() + (7 - now.getDay()));
+    const nextSunday = new Date(now); nextSunday.setDate(now.getDate() + (7 - now.getDay()));
     for(let i=1;i<=5;i++){
-      const d = new Date(nextSunday);
-      d.setDate(nextSunday.getDate() + i);
+      const d = new Date(nextSunday); d.setDate(nextSunday.getDate()+i);
       schedule[iso(d.getFullYear(),d.getMonth()+1,d.getDate())] = selectedStatus;
     }
     saveSchedule(); refreshViews(); return;
   }
   // weekday range like "monday to friday"
-  const wdRange = text.match(/(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*(?:to|-)\s*(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/);
+  const wdRange = text.match(/(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\s*(?:to|-)\s*(sunday|monday|tuesday|wednesday|thursday|friday|saturday)/);
   if(wdRange){
+    const mapDay = { sunday:0,monday:1,tuesday:2,wednesday:3,thursday:4,friday:5,saturday:6 };
+    const sIdx = mapDay[wdRange[1]]; const eIdx = mapDay[wdRange[2]];
     // apply to current week
-    const map = { sunday:0,monday:1,tuesday:2,wednesday:3,thursday:4,friday:5,saturday:6 };
-    const startIdx = map[wdRange[1]];
-    const endIdx = map[wdRange[2]];
-    const base = new Date(); // current week
-    const sunday = new Date(base); sunday.setDate(base.getDate() - base.getDay());
-    for(let i=startIdx;i<=endIdx;i++){
-      const d = new Date(sunday); d.setDate(sunday.getDate() + i);
+    const base = new Date(); const sunday = new Date(base); sunday.setDate(base.getDate() - base.getDay());
+    for(let i=sIdx;i<=eIdx;i++){
+      const d = new Date(sunday); d.setDate(sunday.getDate()+i);
       if(d.getDay()!==0 && d.getDay()!==6) schedule[iso(d.getFullYear(),d.getMonth()+1,d.getDate())] = selectedStatus;
     }
     saveSchedule(); refreshViews(); return;
   }
-  alert('Could not parse date range from voice. Try "Next week WFH" or "2025-09-22 to 2025-09-26 WFH"');
+
+  alert('Could not parse dates from voice. Try "next week WFH" or "2025-09-22 to 2025-09-26 WFH".');
 }
 
-// Initialize app
+// refresh views
+function refreshViews(){
+  if(tabMonth.classList.contains('active')) buildMonthView(currentYear,currentMonth);
+  if(tabYear.classList.contains('active')) buildYearView(currentYear);
+  if(tabSummary.classList.contains('active')) updateSummary(currentYear,currentMonth);
+  // hide or show actionBar depending on tab
+  if(tabSummary.classList.contains('active')) actionBar.style.display = 'none'; else actionBar.style.display = 'flex';
+}
+
+// initial load
 function init(){
   loadSchedule();
-  // set default to current month/year within allowed range
+  if(currentYear < START_YEAR) { currentYear = START_YEAR; currentMonth = 1; }
+  if(currentYear > END_YEAR) { currentYear = START_YEAR; currentMonth = 1; }
+  // clamp currentYear
   if(currentYear < START_YEAR) currentYear = START_YEAR;
-  if(currentYear > END_YEAR) currentYear = START_YEAR;
-  buildMonthView(currentYear, currentMonth);
+  if(currentYear > END_YEAR) currentYear = END_YEAR;
+  // default populate month
+  buildMonthView(currentYear,currentMonth);
   buildYearView(currentYear);
-  updateSummary(currentYear, currentMonth);
+  updateSummary(currentYear,currentMonth);
   showTab('month');
-  highlightSelectedStatusButton();
 }
-init();
 
-/* helpers to render month and year on demand */
-function buildMonthView(y,m){
-  currentYear = y; currentMonth = m;
-  monthContainer.innerHTML = '';
-  const card = renderMonthCard(y,m);
-  monthContainer.appendChild(card);
-  monthYearLabel.textContent = `${monthName(m)} ${y}`;
-}
+init();
