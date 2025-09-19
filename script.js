@@ -6,7 +6,7 @@
 */
 
 const START_YEAR = 2025, END_YEAR = 2040;
-const STATUS_KEYS = ["WFH", "OFFC", "TRAIN", "SL/EL", "PH"];
+const STATUS_KEYS = ["WFH", "OFC", "TRAIN", "SL/EL", "PH"];
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -14,8 +14,8 @@ const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frid
 const VOICE_STATUS_MAP = {
   "work from home": "WFH",
   "wfh": "WFH",
-  "office": "OFFC",
-  "offc": "OFFC",
+  "office": "OFC",
+  "ofc": "OFC",
   "training": "TRAIN",
   "train": "TRAIN",
   "earned leave": "EL",
@@ -31,7 +31,7 @@ const VOICE_STATUS_MAP = {
 // application state
 let schedule = {};
 let selectedStatus = null; // e.g. "WFH" or "" for CLEAR single
-let lastBaseStatus = "WFH"; // tracks last WFH/OFFC for half-day leave
+let lastBaseStatus = "WFH"; // tracks last WFH/OFC for half-day leave
 let current = new Date(); // current device date
 let currentYear = current.getFullYear();
 let currentMonth = current.getMonth() + 1; // 1..12
@@ -83,7 +83,7 @@ helpContent.innerHTML = `
     <h3>How to Use the App</h3>
     <p>The app has four main tabs:</p>
     <ul>
-        <li><strong>MONTH (1st Tab):</strong> This is your main workspace. Use the buttons at the top to select a status (WFH, OFFC, etc.), then click on any day to apply that status. You can also click and drag to select a range of dates. Use the "CLEAR" button to remove a status from a selected day.</li>
+        <li><strong>MONTH (1st Tab):</strong> This is your main workspace. Use the buttons at the top to select a status (WFH, OFC, etc.), then click on any day to apply that status. You can also click and drag to select a range of dates. Use the "CLEAR" button to remove a status from a selected day.</li>
         <li><strong>YEAR (2nd Tab):</strong> This tab provides a read-only overview of your entire year. It shows all 12 months in one view, color-coded based on your entries. You can click on any month's card to jump to that month in the Month view.</li>
         <li><strong>SUMMARY (3rd Tab):</strong> This tab gives you a breakdown of your entries for a specific month, year, or a custom date range.</li>
         <li><strong>HELP (4th Tab):</strong> This tab contains this help guide.</li>
@@ -207,7 +207,7 @@ statusBtns.forEach(btn => {
     statusBtns.forEach(b => b.classList.remove('active'));
     selectedStatus = btn.dataset.status;
     btn.classList.add('active');
-    if (selectedStatus === 'WFH' || selectedStatus === 'OFFC') {
+    if (selectedStatus === 'WFH' || selectedStatus === 'OFC') {
         lastBaseStatus = selectedStatus;
     }
   });
@@ -377,28 +377,46 @@ function buildMonthView(y, m) {
       const prevStatus = schedule[dateISO];
       
       if (selectedStatus === 'SL/EL') {
-          const leaveType = prompt("Full Day or Half Day leave? (Type 'full' or 'half')");
-          if (leaveType && leaveType.toLowerCase() === 'full') {
+          // Create the in-place dropdown/menu
+          const menu = document.createElement('div');
+          menu.classList.add('leave-menu');
+          
+          const fullDayBtn = document.createElement('button');
+          fullDayBtn.textContent = 'Full Day';
+          fullDayBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
               schedule[dateISO] = 'SL/EL';
-          } else if (leaveType && leaveType.toLowerCase() === 'half') {
-              const specificLeaveType = prompt("SL or EL?");
-              if (specificLeaveType && (specificLeaveType.toLowerCase() === 'sl' || specificLeaveType.toLowerCase() === 'el')) {
-                  const finalStatus = `${specificLeaveType.toUpperCase()}_${lastBaseStatus}`;
-                  schedule[dateISO] = finalStatus;
-              } else {
-                  return;
-              }
-          } else {
-              return;
-          }
+              saveSchedule();
+              refreshViews();
+              menu.remove();
+          });
+          
+          const halfDayBtn = document.createElement('button');
+          halfDayBtn.textContent = 'Half Day';
+          halfDayBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              // Automatically apply EL and last base status for half day
+              const finalStatus = `EL_${lastBaseStatus}`;
+              schedule[dateISO] = finalStatus;
+              saveSchedule();
+              refreshViews();
+              menu.remove();
+          });
+          
+          menu.appendChild(fullDayBtn);
+          menu.appendChild(halfDayBtn);
+          
+          dayCell.appendChild(menu);
+          
       } else if (selectedStatus === '') {
           delete schedule[dateISO];
+          saveSchedule();
+          refreshViews();
       } else {
           schedule[dateISO] = selectedStatus;
+          saveSchedule();
+          refreshViews();
       }
-      
-      saveSchedule();
-      refreshViews();
     });
 
     grid.appendChild(dayCell);
@@ -501,14 +519,7 @@ function updateSummaryMonthly(year, month) {
   currentMonth = month;
 
   summaryLabel.textContent = `${MONTH_NAMES[month-1]} ${year}`;
-  const counts = STATUS_KEYS.reduce((acc, status) => ({
-    ...acc,
-    [status]: 0
-  }), {});
-  counts['SL'] = 0;
-  counts['EL'] = 0;
-  counts['WFH'] = 0;
-  counts['OFFC'] = 0;
+  const counts = { "WFH": 0, "OFC": 0, "TRAIN": 0, "SL": 0, "EL": 0, "PH": 0, "SL/EL": 0 };
 
   const daysInMonth = new Date(year, month, 0).getDate();
   for (let day = 1; day <= daysInMonth; day++) {
@@ -521,12 +532,17 @@ function updateSummaryMonthly(year, month) {
           counts[parts[1]] += 0.5;
       } else if (counts.hasOwnProperty(status)) {
         counts[status]++;
+      } else {
+        // Handle cases like SL/EL
+        if (status === 'SL/EL') {
+          counts['SL/EL']++;
+        }
       }
     }
   }
 
   for (const status in counts) {
-    if (status === 'SL/EL' || counts[status] === 0) continue;
+    if (counts[status] === 0) continue;
     const item = document.createElement('div');
     item.classList.add('summary-row', status);
     item.innerHTML = `<div>${status}</div><div>${counts[status]}</div>`;
@@ -540,14 +556,7 @@ function updateSummaryYearly(year) {
   summaryCurrentYear = year;
   summaryYearLabel.textContent = year;
 
-  const counts = STATUS_KEYS.reduce((acc, status) => ({
-    ...acc,
-    [status]: 0
-  }), {});
-  counts['SL'] = 0;
-  counts['EL'] = 0;
-  counts['WFH'] = 0;
-  counts['OFFC'] = 0;
+  const counts = { "WFH": 0, "OFC": 0, "TRAIN": 0, "SL": 0, "EL": 0, "PH": 0, "SL/EL": 0 };
 
   for (let m = 1; m <= 12; m++) {
     const daysInMonth = new Date(year, m, 0).getDate();
@@ -561,13 +570,18 @@ function updateSummaryYearly(year) {
             counts[parts[1]] += 0.5;
         } else if (counts.hasOwnProperty(status)) {
           counts[status]++;
+        } else {
+          // Handle cases like SL/EL
+          if (status === 'SL/EL') {
+            counts['SL/EL']++;
+          }
         }
       }
     }
   }
 
   for (const status in counts) {
-    if (status === 'SL/EL' || counts[status] === 0) continue;
+    if (counts[status] === 0) continue;
     const item = document.createElement('div');
     item.classList.add('summary-row', status);
     item.innerHTML = `<div>${status}</div><div>${counts[status]}</div>`;
@@ -586,14 +600,7 @@ function updateSummaryRange() {
     return {};
   }
 
-  const counts = STATUS_KEYS.reduce((acc, status) => ({
-    ...acc,
-    [status]: 0
-  }), {});
-  counts['SL'] = 0;
-  counts['EL'] = 0;
-  counts['WFH'] = 0;
-  counts['OFFC'] = 0;
+  const counts = { "WFH": 0, "OFC": 0, "TRAIN": 0, "SL": 0, "EL": 0, "PH": 0, "SL/EL": 0 };
   let currentDate = new Date(startDate);
 
   while (currentDate <= endDate) {
@@ -606,13 +613,18 @@ function updateSummaryRange() {
             counts[parts[1]] += 0.5;
         } else if (counts.hasOwnProperty(status)) {
           counts[status]++;
+        } else {
+          // Handle cases like SL/EL
+          if (status === 'SL/EL') {
+            counts['SL/EL']++;
+          }
         }
     }
     currentDate.setDate(currentDate.getDate() + 1);
   }
 
   for (const status in counts) {
-    if (status === 'SL/EL' || counts[status] === 0) continue;
+    if (counts[status] === 0) continue;
     const item = document.createElement('div');
     item.classList.add('summary-row', status);
     item.innerHTML = `<div>${status}</div><div>${counts[status]}</div>`;
@@ -757,18 +769,8 @@ function parseVoiceMonth(text) {
 
     if (!isNaN(day) && status) {
         if(status === 'SL/EL') {
-            const halfDayMatch = text.match(/(full day|half day)/);
-            if(halfDayMatch) {
-                const leaveType = text.match(/(sl|el)/);
-                if(leaveType) {
-                    schedule[iso(currentYear, monthIdx + 1, day)] = `${leaveType[1].toUpperCase()}_${lastBaseStatus}`;
-                } else {
-                    speak('Please specify SL or EL for half day.');
-                    return;
-                }
-            } else {
-                schedule[iso(currentYear, monthIdx + 1, day)] = status;
-            }
+            const finalStatus = `EL_${lastBaseStatus}`;
+            schedule[iso(currentYear, monthIdx + 1, day)] = finalStatus;
         } else {
             schedule[iso(currentYear, monthIdx + 1, day)] = status;
         }
