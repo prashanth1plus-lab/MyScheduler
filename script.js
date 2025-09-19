@@ -6,7 +6,7 @@
 */
 
 const START_YEAR = 2025, END_YEAR = 2040;
-const STATUS_KEYS = ["WFH", "OFFC", "TRAIN", "SL/EL", "PH"];
+const STATUS_KEYS = ["WFH", "OFFC", "TRAIN", "EL", "SL", "PH"];
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -22,7 +22,6 @@ const VOICE_STATUS_MAP = {
   "el": "EL",
   "sick leave": "SL",
   "sl": "SL",
-  "leave": "SL/EL",
   "public holiday": "PH",
   "ph": "PH",
   "holiday": "PH"
@@ -31,7 +30,6 @@ const VOICE_STATUS_MAP = {
 // application state
 let schedule = {};
 let selectedStatus = null; // e.g. "WFH" or "" for CLEAR single
-let lastBaseStatus = "WFH"; // tracks last WFH/OFFC for half-day leave
 let current = new Date(); // current device date
 let currentYear = current.getFullYear();
 let currentMonth = current.getMonth() + 1; // 1..12
@@ -207,9 +205,6 @@ statusBtns.forEach(btn => {
     statusBtns.forEach(b => b.classList.remove('active'));
     selectedStatus = btn.dataset.status;
     btn.classList.add('active');
-    if (selectedStatus === 'WFH' || selectedStatus === 'OFFC') {
-        lastBaseStatus = selectedStatus;
-    }
   });
 });
 
@@ -329,10 +324,8 @@ function buildMonthView(y, m) {
 
   for (let d = 1; d <= daysInMonth; d++) {
     const date = new Date(y, m - 1, d);
-    const dateISO = iso(y, m, d);
     const dayCell = document.createElement('div');
     dayCell.classList.add('day-cell');
-    dayCell.dataset.date = dateISO;
 
     const dayNumber = document.createElement('span');
     dayNumber.classList.add('day-number');
@@ -343,27 +336,13 @@ function buildMonthView(y, m) {
       dayCell.classList.add('weekend');
     }
 
+    const dateISO = iso(y, m, d);
     if (schedule[dateISO]) {
-      const status = schedule[dateISO];
-      const parts = status.split('_');
-      if (parts.length === 2) {
-          dayCell.classList.add('half-day');
-          const firstPart = document.createElement('span');
-          firstPart.classList.add('half-day-leave', parts[0]);
-          firstPart.textContent = parts[0];
-          dayCell.appendChild(firstPart);
-
-          const secondPart = document.createElement('span');
-          secondPart.classList.add('half-day-status', parts[1]);
-          secondPart.textContent = parts[1];
-          dayCell.appendChild(secondPart);
-      } else {
-        dayCell.classList.add(status);
-        const statusLabel = document.createElement('span');
-        statusLabel.classList.add('day-label');
-        statusLabel.textContent = status;
-        dayCell.appendChild(statusLabel);
-      }
+      dayCell.classList.add(schedule[dateISO]);
+      const statusLabel = document.createElement('span');
+      statusLabel.classList.add('day-label');
+      statusLabel.textContent = schedule[dateISO];
+      dayCell.appendChild(statusLabel);
     }
     
     // highlight today
@@ -372,33 +351,33 @@ function buildMonthView(y, m) {
       dayCell.classList.add('today');
     }
 
+
     dayCell.addEventListener('click', () => {
       if (dayCell.classList.contains('weekend') || selectedStatus === null) return;
+
       const prevStatus = schedule[dateISO];
-      
-      if (selectedStatus === 'SL/EL') {
-          const leaveType = prompt("Full Day or Half Day leave? (Type 'full' or 'half')");
-          if (leaveType && leaveType.toLowerCase() === 'full') {
-              schedule[dateISO] = 'SL/EL';
-          } else if (leaveType && leaveType.toLowerCase() === 'half') {
-              const specificLeaveType = prompt("SL or EL?");
-              if (specificLeaveType && (specificLeaveType.toLowerCase() === 'sl' || specificLeaveType.toLowerCase() === 'el')) {
-                  const finalStatus = `${specificLeaveType.toUpperCase()}_${lastBaseStatus}`;
-                  schedule[dateISO] = finalStatus;
-              } else {
-                  return;
-              }
-          } else {
-              return;
-          }
-      } else if (selectedStatus === '') {
-          delete schedule[dateISO];
+      schedule[dateISO] = selectedStatus;
+      if (selectedStatus) {
+        dayCell.classList.remove(prevStatus);
+        dayCell.classList.add(selectedStatus);
+
+        const existingLabel = dayCell.querySelector('.day-label');
+        if (existingLabel) {
+          existingLabel.remove();
+        }
+        const newLabel = document.createElement('span');
+        newLabel.classList.add('day-label');
+        newLabel.textContent = selectedStatus;
+        dayCell.appendChild(newLabel);
       } else {
-          schedule[dateISO] = selectedStatus;
+        delete schedule[dateISO];
+        dayCell.classList.remove(prevStatus);
+        const existingLabel = dayCell.querySelector('.day-label');
+        if (existingLabel) {
+          existingLabel.remove();
+        }
       }
-      
       saveSchedule();
-      refreshViews();
     });
 
     grid.appendChild(dayCell);
@@ -456,23 +435,8 @@ function buildYearView(y) {
       }
 
       const dateISO = iso(y, m, d);
-      const status = schedule[dateISO];
-      if (status) {
-          const parts = status.split('_');
-          if (parts.length === 2) {
-              dayCell.classList.add('half-day');
-              const firstPart = document.createElement('span');
-              firstPart.classList.add('half-day-leave-mini', parts[0]);
-              firstPart.textContent = parts[0];
-              dayCell.appendChild(firstPart);
-
-              const secondPart = document.createElement('span');
-              secondPart.classList.add('half-day-status-mini', parts[1]);
-              secondPart.textContent = parts[1];
-              dayCell.appendChild(secondPart);
-          } else {
-              dayCell.classList.add(status);
-          }
+      if (schedule[dateISO]) {
+        dayCell.classList.add(schedule[dateISO]);
       }
       grid.appendChild(dayCell);
     }
@@ -505,28 +469,17 @@ function updateSummaryMonthly(year, month) {
     ...acc,
     [status]: 0
   }), {});
-  counts['SL'] = 0;
-  counts['EL'] = 0;
-  counts['WFH'] = 0;
-  counts['OFFC'] = 0;
 
   const daysInMonth = new Date(year, month, 0).getDate();
   for (let day = 1; day <= daysInMonth; day++) {
     const dateISO = iso(year, month, day);
     const status = schedule[dateISO];
-    if (status) {
-      const parts = status.split('_');
-      if (parts.length === 2) {
-          counts[parts[0]] += 0.5;
-          counts[parts[1]] += 0.5;
-      } else if (counts.hasOwnProperty(status)) {
-        counts[status]++;
-      }
+    if (status && counts.hasOwnProperty(status)) {
+      counts[status]++;
     }
   }
 
   for (const status in counts) {
-    if (status === 'SL/EL' || counts[status] === 0) continue;
     const item = document.createElement('div');
     item.classList.add('summary-row', status);
     item.innerHTML = `<div>${status}</div><div>${counts[status]}</div>`;
@@ -544,30 +497,19 @@ function updateSummaryYearly(year) {
     ...acc,
     [status]: 0
   }), {});
-  counts['SL'] = 0;
-  counts['EL'] = 0;
-  counts['WFH'] = 0;
-  counts['OFFC'] = 0;
 
   for (let m = 1; m <= 12; m++) {
     const daysInMonth = new Date(year, m, 0).getDate();
     for (let day = 1; day <= daysInMonth; day++) {
       const dateISO = iso(year, m, day);
       const status = schedule[dateISO];
-      if (status) {
-        const parts = status.split('_');
-        if (parts.length === 2) {
-            counts[parts[0]] += 0.5;
-            counts[parts[1]] += 0.5;
-        } else if (counts.hasOwnProperty(status)) {
-          counts[status]++;
-        }
+      if (status && counts.hasOwnProperty(status)) {
+        counts[status]++;
       }
     }
   }
 
   for (const status in counts) {
-    if (status === 'SL/EL' || counts[status] === 0) continue;
     const item = document.createElement('div');
     item.classList.add('summary-row', status);
     item.innerHTML = `<div>${status}</div><div>${counts[status]}</div>`;
@@ -590,29 +532,18 @@ function updateSummaryRange() {
     ...acc,
     [status]: 0
   }), {});
-  counts['SL'] = 0;
-  counts['EL'] = 0;
-  counts['WFH'] = 0;
-  counts['OFFC'] = 0;
   let currentDate = new Date(startDate);
 
   while (currentDate <= endDate) {
     const dateISO = iso(currentDate.getFullYear(), currentDate.getMonth() + 1, currentDate.getDate());
     const status = schedule[dateISO];
-    if (status) {
-        const parts = status.split('_');
-        if (parts.length === 2) {
-            counts[parts[0]] += 0.5;
-            counts[parts[1]] += 0.5;
-        } else if (counts.hasOwnProperty(status)) {
-          counts[status]++;
-        }
+    if (status && counts.hasOwnProperty(status)) {
+      counts[status]++;
     }
     currentDate.setDate(currentDate.getDate() + 1);
   }
 
   for (const status in counts) {
-    if (status === 'SL/EL' || counts[status] === 0) continue;
     const item = document.createElement('div');
     item.classList.add('summary-row', status);
     item.innerHTML = `<div>${status}</div><div>${counts[status]}</div>`;
@@ -707,31 +638,13 @@ function parseVoiceMonth(text) {
     }
   }
 
-  const fullMonthMatch = text.match(new RegExp(`(mark|update|add) (${statusPhrases}) for full month`));
-  if(fullMonthMatch) {
-      const status = getStatus(fullMonthMatch[2]);
-      if (status) {
-          const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
-          for (let d = 1; d <= daysInMonth; d++) {
-              const dow = new Date(currentYear, currentMonth - 1, d).getDay();
-              if (dow !== 0 && dow !== 6) {
-                  schedule[iso(currentYear, currentMonth, d)] = status;
-              }
-          }
-          saveSchedule();
-          refreshViews();
-          speak(`Marked full month to ${status}`);
-          return;
-      }
-  }
-  
-  const rangeMatch = text.match(new RegExp(`(\\d+)\\s*(?:to|-)\\s*(\\d+)(?:th)?\\s*(?:of)?\\s*(${monthNamesRegex})?\\s*(?:as|to)?\\s*(${statusPhrases})`));
+  const rangeMatch = text.match(new RegExp(`(\\d+)\\s*(?:to|-)\\s*(\\d+)(?:th)?\\s*(${monthNamesRegex})\\s*(${statusPhrases})`));
   if (rangeMatch) {
     const fromDay = parseInt(rangeMatch[1]);
     const toDay = parseInt(rangeMatch[2]);
     const monthName = rangeMatch[3];
+    const monthIdx = MONTH_NAMES.map(m => m.toLowerCase()).indexOf(monthName);
     const status = getStatus(rangeMatch[4]);
-    const monthIdx = monthName ? MONTH_NAMES.map(m => m.toLowerCase()).indexOf(monthName) : currentMonth - 1;
 
     if (monthIdx !== -1 && fromDay <= toDay && status) {
       for (let day = fromDay; day <= toDay; day++) {
@@ -740,12 +653,12 @@ function parseVoiceMonth(text) {
       }
       saveSchedule();
       refreshViews();
-      speak(`Set ${fromDay} to ${toDay} of ${monthName || MONTH_NAMES[currentMonth-1]} to ${status}.`);
+      speak(`Set ${fromDay} to ${toDay} of ${monthName} to ${status}.`);
       return;
     }
   }
 
-  const singleDayMatch = text.match(new RegExp(`(?:mark|on|update|add)?\\s*(\\d+)(?:st|nd|rd|th)?\\s*(?:of)?\\s*(${monthNamesRegex})?\\s*(?:as|to)?\\s*(${statusPhrases})`));
+  const singleDayMatch = text.match(new RegExp(`(?:mark|on)?\\s*(\\d+)(?:st|nd|rd|th)?\\s*(?:of)?\\s*(${monthNamesRegex})?\\s*(${statusPhrases})`));
   if (singleDayMatch) {
     const day = parseInt(singleDayMatch[1]);
     const monthName = singleDayMatch[2];
@@ -756,25 +669,11 @@ function parseVoiceMonth(text) {
     }
 
     if (!isNaN(day) && status) {
-        if(status === 'SL/EL') {
-            const halfDayMatch = text.match(/(full day|half day)/);
-            if(halfDayMatch) {
-                const leaveType = text.match(/(sl|el)/);
-                if(leaveType) {
-                    schedule[iso(currentYear, monthIdx + 1, day)] = `${leaveType[1].toUpperCase()}_${lastBaseStatus}`;
-                } else {
-                    speak('Please specify SL or EL for half day.');
-                    return;
-                }
-            } else {
-                schedule[iso(currentYear, monthIdx + 1, day)] = status;
-            }
-        } else {
-            schedule[iso(currentYear, monthIdx + 1, day)] = status;
-        }
+      const dateISO = iso(currentYear, monthIdx + 1, day);
+      schedule[dateISO] = status;
       saveSchedule();
       refreshViews();
-      speak(`Set ${day} ${MONTH_NAMES[monthIdx]} to ${schedule[iso(currentYear, monthIdx + 1, day)]}.`);
+      speak(`Set ${day} ${MONTH_NAMES[monthIdx]} to ${status}.`);
       return;
     }
   }
