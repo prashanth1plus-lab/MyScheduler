@@ -14,6 +14,7 @@
       <button id="tabMonth" class="tab-btn active">MONTH</button>
       <button id="tabYear" class="tab-btn">YEAR</button>
       <button id="tabSummary" class="tab-btn">SUMMARY</button>
+      <button id="tabHelp" class="tab-btn">HELP</button>
     </nav>
   </header>
 
@@ -28,9 +29,10 @@
       <section id="actionBar" class="status-row">
         <div class="status-left">
           <button class="status-btn" data-status="WFH">WFH</button>
-          <button class="status-btn" data-status="OFC">OFC</button>
+          <button class="status-btn" data-status="OFFC">OFFC</button>
           <button class="status-btn" data-status="TRAIN">TRAIN</button>
-          <button class="status-btn" data-status="LEAVE">EL/SL</button>
+          <button class="status-btn" data-status="EL">EL</button>
+          <button class="status-btn" data-status="SL">SL</button>
           <button class="status-btn" data-status="PH">PH</button>
           <button id="clearSingleBtn" class="status-btn" data-status="">CLEAR</button>
         </div>
@@ -82,8 +84,15 @@
         <div id="summaryPanelRange" class="summary-panel"></div>
       </div>
     </section>
+
+    <section id="helpView" class="view" style="display:none;">
+      <div id="helpContent" class="help-content"></div>
+    </section>
+
   </main>
-  
+
+  <footer class="footer">Installable PWA — works offline after first load</footer>
+
   <script src="script.js"></script>
 </body>
 </html>
