@@ -1,39 +1,65 @@
 :root{
-  --bg:#f6f7f9; --card:#fff; --muted:#666; --accent:#27ae60;
+  --bg: #f5f7fa;
+  --card: #fff;
+  --muted: #9aa3ad;
+  --wf: #5dade2;
+  --off: #27ae60;
+  --train: #8e44ad;
+  --leave: #e74c3c;
+  --ph: #f39c12;
+  --weekend:#000;
 }
 *{box-sizing:border-box}
-body{font-family:Inter,system-ui,Arial,sans-serif;margin:0;background:var(--bg);color:#222}
-.topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#334; color:white}
-.topbar .title{font-weight:700}
-.tabs .tab{background:transparent;border:none;color:#ddd;padding:6px 8px;margin-left:6px;cursor:pointer}
-.tabs .tab.active{border-bottom:3px solid #1abc9c;color:#fff}
-main{padding:10px}
-.month-header, .year-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-.month-label{font-weight:700;font-size:1.1rem}
-.arrow{padding:8px 12px;border-radius:6px;border:1px solid #ccc;background:#fff;cursor:pointer}
-.calendar-container{background:var(--card);padding:8px;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.08)}
-.weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;margin-bottom:6px;color:var(--muted)}
-.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
-.cell{min-height:62px;padding:6px;border-radius:6px;border:1px solid rgba(0,0,0,0.06);display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start}
-.cell .date-num{font-size:0.85rem;color:#222}
-.cell .status-text{font-weight:700;font-size:0.9rem;margin-top:6px;align-self:center}
-.weekend{background:#111;color:#fff}
-.today{outline:3px solid #f1c40f}
-.status-toolbar{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.status-btn{padding:8px 10px;border-radius:6px;border:none;color:#fff;cursor:pointer}
-.status-btn[data-status="WFH"]{background:#5dade2}
-.status-btn[data-status="OFFC"]{background:#2ecc71}
-.status-btn[data-status="TRAIN"]{background:#8e44ad}
-.status-btn[data-status="EL"], .status-btn[data-status="SL"]{background:#e74c3c}
-.status-btn[data-status="PH"]{background:#f39c12}
-.status-btn[data-status=""]{background:#95a5a6}
-.year-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-.month-card{background:var(--card);padding:8px;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.06)}
-.month-title{text-align:center;font-weight:700;margin-bottom:6px}
-.summary-panel{background:var(--card);padding:12px;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.06)}
-.hidden{display:none}
-.footer{padding:12px;text-align:center;color:#666}
-@media (max-width:600px){
-  .year-grid{grid-template-columns:repeat(2,1fr)}
-  .cell{min-height:48px;padding:4px}
+body{margin:0;font-family:Inter, Arial, sans-serif;background:var(--bg);color:#222}
+.topbar{display:flex;justify-content:space-between;align-items:center;background:#343242;color:#fff;padding:10px 16px}
+.brand{font-weight:700}
+.tabs button{background:transparent;border:none;color:#bbb;padding:8px 10px;margin-left:6px;cursor:pointer}
+.tabs button.active{color:#8ee0c0;border-bottom:3px solid #18b18a}
+.controls{display:flex;align-items:center;justify-content:space-between;padding:12px 16px}
+.nav-btn{padding:8px 10px;border-radius:6px;border:1px solid #ddd;background:#fff;cursor:pointer}
+.center-controls .label{font-weight:700}
+.status-row{padding:8px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.status-btn{border:none;padding:8px 12px;border-radius:8px;color:#fff;cursor:pointer}
+.status-btn[data-status="WFH"]{background:var(--wf)}
+.status-btn[data-status="OFFC"]{background:var(--off)}
+.status-btn[data-status="TRAIN"]{background:var(--train)}
+.status-btn[data-status="EL"]{background:var(--leave)}
+.status-btn[data-status="SL"]{background:var(--leave)}
+.status-btn[data-status="PH"]{background:var(--ph);color:#222}
+.status-btn[data-status=""]{background:#7f8c8d}
+.status-btn[data-status="CLEARMONTH"]{background:#333}
+.voice-btn{background:#fff;border:1px solid #ccc;padding:8px 10px;border-radius:6px}
+
+/* month container */
+.month-container{padding:12px 16px;display:flex;flex-direction:column;gap:12px}
+.month-card{background:var(--card);padding:12px;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,0.04)}
+.month-title{text-align:center;font-weight:700;margin-bottom:8px}
+.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.day-cell{min-height:36px;padding:6px;border-radius:6px;border:1px solid #eee;display:flex;align-items:center;justify-content:center;font-weight:600}
+.day-cell.weekend{background:var(--weekend);color:#fff;cursor:default}
+.day-cell.today{box-shadow:0 0 0 3px rgba(0,0,0,0.06) inset}
+.day-cell.WFH{background:var(--wf);color:#fff}
+.day-cell.OFFC{background:var(--off);color:#fff}
+.day-cell.TRAIN{background:var(--train);color:#fff}
+.day-cell.EL,.day-cell.SL{background:var(--leave);color:#fff}
+.day-cell.PH{background:var(--ph);color:#222}
+
+/* year view grid */
+.year-container{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:12px}
+.year-card{background:var(--card);padding:12px;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,0.04)}
+.year-card .month-title{text-align:center;font-weight:700;margin-bottom:8px}
+
+/* summary view */
+.summary-header{display:flex;align-items:center;justify-content:center;gap:12px;padding:12px}
+.summary-panel{max-width:700px;margin:0 auto;background:var(--card);padding:16px;border-radius:8px}
+.summary-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed #eee}
+
+/* responsive */
+@media (max-width:900px){
+  .year-container{grid-template-columns:repeat(2,1fr)}
 }
+@media (max-width:600px){
+  .year-container{grid-template-columns:repeat(1,1fr)}
+  .status-row{overflow-x:auto;padding-bottom:12px}
+}
+.footer{padding:12px;text-align:center;color:var(--muted);font-size:13px}
