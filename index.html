@@ -1,42 +1,67 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Scheduler PWA</title>
 <link rel="stylesheet" href="styles.css">
 <link rel="manifest" href="manifest.json">
 </head>
 <body>
-<div id="app">
-    <div id="monthYearSelectors">
-        <select id="monthSelect"></select>
-        <select id="yearSelect"></select>
-    </div>
-    
-    <button id="toggleViewBtn">Switch to Summary View</button>
-    
-    <div id="calendarContainer">
-        <table id="calendarTable"></table>
-    </div>
+<header class="topbar">
+  <div class="title">WF OFFICE PLANNER</div>
+  <div class="tabs">
+    <button id="tabMonth" class="tab active">MONTH</button>
+    <button id="tabYear"  class="tab">YEAR</button>
+    <button id="tabSummary" class="tab">SUMMARY</button>
+  </div>
+</header>
 
-    <div id="statusButtons">
-        <button class="status-btn" data-status="WFH">WFH</button>
-        <button class="status-btn" data-status="OFFC">OFFC</button>
-        <button class="status-btn" data-status="EL">EL</button>
-        <button class="status-btn" data-status="SL">SL</button>
-        <button class="status-btn" data-status="PH">PH</button>
-        <button class="status-btn" data-status="TRAIN">TRAIN</button>
-        <button class="status-btn" data-status="">Clear</button>
+<main>
+  <!-- Month view -->
+  <section id="monthView" class="view">
+    <div class="month-header">
+      <button id="prevMonth" class="arrow">&lt;</button>
+      <div id="currentMonthLabel" class="month-label"></div>
+      <button id="nextMonth" class="arrow">&gt;</button>
     </div>
+    <div id="calendarContainer" class="calendar-container"></div>
 
-    <button id="voiceBtn">🎤 Start Voice Command</button>
-
-    <div id="summaryOnlyContainer" style="display:none;">
-        <h3>📊 Monthly Summary</h3>
-        <div id="monthly-summary-panel-summary-only"></div>
+    <div id="statusButtons" class="status-toolbar">
+      <button class="status-btn" data-status="WFH">WFH</button>
+      <button class="status-btn" data-status="OFFC">OFFC</button>
+      <button class="status-btn" data-status="TRAIN">TRAIN</button>
+      <button class="status-btn" data-status="EL">EL</button>
+      <button class="status-btn" data-status="SL">SL</button>
+      <button class="status-btn" data-status="PH">PH</button>
+      <button class="status-btn" data-status="">Clear</button>
+      <button id="voiceBtn">🎤 Voice</button>
     </div>
-</div>
+  </section>
+
+  <!-- Year view -->
+  <section id="yearView" class="view hidden">
+    <div class="year-header">
+      <button id="prevYear" class="arrow">&lt;</button>
+      <div id="yearLabel" class="month-label"></div>
+      <button id="nextYear" class="arrow">&gt;</button>
+    </div>
+    <div id="yearGrid" class="year-grid"></div>
+  </section>
+
+  <!-- Summary view -->
+  <section id="summaryView" class="view hidden">
+    <div class="summary-controls">
+      <select id="summaryMonth"></select>
+      <select id="summaryYear"></select>
+    </div>
+    <div id="summaryPanel" class="summary-panel"></div>
+  </section>
+</main>
+
+<footer class="footer">
+  <small>Installable PWA • Voice: Chrome Android recommended</small>
+</footer>
 
 <script src="app.js"></script>
 </body>

@@ -1,27 +1,39 @@
-body { font-family: Arial, sans-serif; margin:10px; }
-table { width: 100%; border-collapse: collapse; }
-td { width:14%; height:60px; text-align:center; border:1px solid #ccc; cursor:pointer; }
-.weekend { background-color: #000; color:#fff; }
-.today { border:2px solid #f00; }
-
-.WFH { background-color: #5dade2; color:#fff; }
-.OFFC { background-color: #27ae60; color:#fff; }
-.EL, .SL { background-color: #e74c3c; color:#fff; }
-.PH { background-color: #f39c12; color:#fff; }
-.TRAIN { background-color: #8e44ad; color:#fff; }
-
-#statusButtons { margin:10px 0; text-align:center; }
-.status-btn { margin:2px; padding:6px 12px; cursor:pointer; border:none; border-radius:4px; color:#fff; }
-.status-btn[data-status="WFH"]{ background:#5dade2; }
-.status-btn[data-status="OFFC"]{ background:#27ae60; }
-.status-btn[data-status="EL"]{ background:#e74c3c; }
-.status-btn[data-status="SL"]{ background:#e74c3c; }
-.status-btn[data-status="PH"]{ background:#f39c12; }
-.status-btn[data-status="TRAIN"]{ background:#8e44ad; }
-.status-btn[data-status=""]{ background:#7f8c8d; }
-
-#summaryOnlyContainer { margin-top: 10px; }
-
-@media screen and (max-width:768px){
-    td { height:50px; font-size:0.8rem; }
+:root{
+  --bg:#f6f7f9; --card:#fff; --muted:#666; --accent:#27ae60;
+}
+*{box-sizing:border-box}
+body{font-family:Inter,system-ui,Arial,sans-serif;margin:0;background:var(--bg);color:#222}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#334; color:white}
+.topbar .title{font-weight:700}
+.tabs .tab{background:transparent;border:none;color:#ddd;padding:6px 8px;margin-left:6px;cursor:pointer}
+.tabs .tab.active{border-bottom:3px solid #1abc9c;color:#fff}
+main{padding:10px}
+.month-header, .year-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.month-label{font-weight:700;font-size:1.1rem}
+.arrow{padding:8px 12px;border-radius:6px;border:1px solid #ccc;background:#fff;cursor:pointer}
+.calendar-container{background:var(--card);padding:8px;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.08)}
+.weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;margin-bottom:6px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cell{min-height:62px;padding:6px;border-radius:6px;border:1px solid rgba(0,0,0,0.06);display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start}
+.cell .date-num{font-size:0.85rem;color:#222}
+.cell .status-text{font-weight:700;font-size:0.9rem;margin-top:6px;align-self:center}
+.weekend{background:#111;color:#fff}
+.today{outline:3px solid #f1c40f}
+.status-toolbar{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.status-btn{padding:8px 10px;border-radius:6px;border:none;color:#fff;cursor:pointer}
+.status-btn[data-status="WFH"]{background:#5dade2}
+.status-btn[data-status="OFFC"]{background:#2ecc71}
+.status-btn[data-status="TRAIN"]{background:#8e44ad}
+.status-btn[data-status="EL"], .status-btn[data-status="SL"]{background:#e74c3c}
+.status-btn[data-status="PH"]{background:#f39c12}
+.status-btn[data-status=""]{background:#95a5a6}
+.year-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.month-card{background:var(--card);padding:8px;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.06)}
+.month-title{text-align:center;font-weight:700;margin-bottom:6px}
+.summary-panel{background:var(--card);padding:12px;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.06)}
+.hidden{display:none}
+.footer{padding:12px;text-align:center;color:#666}
+@media (max-width:600px){
+  .year-grid{grid-template-columns:repeat(2,1fr)}
+  .cell{min-height:48px;padding:4px}
 }
