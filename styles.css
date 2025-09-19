@@ -23,6 +23,7 @@ body{margin:0;font-family:system-ui,Arial,sans-serif;background:var(--bg);color:
 .status-btn[data-status="CLEARMONTH"]{background:#444}
 .voice-btn{background:#fff;border:1px solid #ddd;padding:8px 10px;border-radius:6px;cursor:pointer}
 
+/* month */
 .month-container{padding:12px;display:flex;flex-direction:column;gap:12px}
 .month-card{background:var(--card);padding:12px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.04)}
 .month-title{text-align:center;font-weight:700;margin-bottom:8px}

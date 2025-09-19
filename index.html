@@ -25,7 +25,7 @@
       <button id="nextBtn" class="nav-btn">&gt;</button>
     </section>
 
-    <!-- status + actions (HIDDEN on summary tab via JS) -->
+    <!-- action bar (hidden on summary) -->
     <section id="actionBar" class="status-row">
       <div class="status-left">
         <button class="status-btn" data-status="WFH">WFH</button>
@@ -34,29 +34,37 @@
         <button class="status-btn" data-status="EL">EL</button>
         <button class="status-btn" data-status="SL">SL</button>
         <button class="status-btn" data-status="PH">PH</button>
-        <button id="clearBtn" class="status-btn" data-status="">Clear (single)</button>
-        <button id="clearMonthBtn" class="status-btn" data-status="CLEARMONTH">Clear Month</button>
+        <button id="clearSingleBtn" class="status-btn" data-status="">CLEAR</button>
+        <button id="clearMonthBtn" class="status-btn" data-status="CLEARMONTH">CLEAR MONTH</button>
       </div>
       <div class="status-right">
         <button id="voiceBtn" class="voice-btn" title="Use Chrome on Android for best voice support">🎤 Voice</button>
       </div>
     </section>
 
-    <!-- MONTH view -->
+    <!-- MONTH view (editable) -->
     <section id="monthView" class="view">
       <div id="monthContainer" class="month-container"></div>
     </section>
 
-    <!-- YEAR view -->
+    <!-- YEAR view (read-only) -->
     <section id="yearView" class="view" style="display:none;">
       <div id="yearContainer" class="year-container"></div>
     </section>
 
-    <!-- SUMMARY view -->
+    <!-- SUMMARY view (read-only) -->
     <section id="summaryView" class="view" style="display:none;">
       <div class="summary-header">
         <button id="summaryPrev" class="nav-btn">&lt;</button>
         <div id="summaryLabel" class="label"></div>
         <button id="summaryNext" class="nav-btn">&gt;</button>
       </div>
-      <div id="summaryP
+      <div id="summaryPanel" class="summary-panel"></div>
+    </section>
+  </main>
+
+  <footer class="footer">Installable PWA — works offline after first load</footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wf-planner-v2';
+const CACHE_NAME = 'wf-planner-v1';
 const FILES_TO_CACHE = [
   'index.html',
   'style.css',
