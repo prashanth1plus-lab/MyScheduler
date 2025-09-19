@@ -129,3 +129,66 @@ document.querySelectorAll(".status-btn").forEach(btn=>{
                     delete schedule[cell.dataset.date];
                     let day = cell.dataset.date.split("-")[2];
                     cell.textContent = day;
+                    cell.className = "";
+                }
+            });
+            saveSchedule();
+            updateSummaryPanel();
+        }
+    });
+});
+
+// Month/year change
+monthSelect.addEventListener("change", ()=>buildCalendar(parseInt(yearSelect.value), parseInt(monthSelect.value)));
+yearSelect.addEventListener("change", ()=>buildCalendar(parseInt(yearSelect.value), parseInt(monthSelect.value)));
+
+// Voice command
+const voiceBtn = document.getElementById("voiceBtn");
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if(SpeechRecognition){
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+
+    voiceBtn.addEventListener("click", ()=>{ recognition.start(); voiceBtn.textContent="🎤 Listening..."; });
+
+    recognition.addEventListener("result", (e)=>{
+        const transcript = e.results[0][0].transcript.toLowerCase();
+        voiceBtn.textContent="🎤 Start Voice Command";
+        parseVoiceCommand(transcript);
+    });
+    recognition.addEventListener("end", ()=>{ voiceBtn.textContent="🎤 Start Voice Command"; });
+} else { voiceBtn.disabled=true; voiceBtn.textContent="🎤 Not Supported"; }
+
+// Improved voice parser
+function parseVoiceCommand(command){
+    const statuses = ["wfh","offc","el","sl","ph","train"];
+    let status = statuses.find(s => command.includes(s));
+    if(!status){ alert("Status not recognized"); return; }
+    selectedStatus = status.toUpperCase();
+
+    const todayDate = new Date();
+    let datesToApply = [];
+
+    if(command.includes("next week")){
+        let nextWeekStart = new Date(todayDate);
+        nextWeekStart.setDate(todayDate.getDate() + (7 - todayDate.getDay()));
+        for(let i=1;i<=5;i++){
+            let d = new Date(nextWeekStart);
+            d.setDate(nextWeekStart.getDate()+i);
+            let dateStr = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`;
+            datesToApply.push(dateStr);
+        }
+    }
+
+    datesToApply.forEach(dateStr => { schedule[dateStr] = selectedStatus; });
+    buildCalendar(parseInt(yearSelect.value), parseInt(monthSelect.value));
+    updateSummaryPanel();
+    saveSchedule();
+}
+
+// Initialize
+document.addEventListener("DOMContentLoaded", ()=>{
+    buildCalendar(parseInt(yearSelect.value), parseInt(monthSelect.value));
+    updateSummaryPanel();
+});
