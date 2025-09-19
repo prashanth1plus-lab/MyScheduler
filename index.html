@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scheduler PWA</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="manifest" href="manifest.json">
+</head>
+<body>
+<div id="app">
+    <button id="toggleViewBtn">Switch to Summary View</button>
+    <div id="calendarContainer">
+        <table id="calendarTable"></table>
+    </div>
+    <div id="summaryOnlyContainer" style="display:none;">
+        <h3>📊 Monthly Summary</h3>
+        <div id="monthly-summary-panel-summary-only"></div>
+    </div>
+    <div id="monthly-summary-panel"></div>
+</div>
+
+<!-- Status Modal for mobile -->
+<div id="statusModal" style="display:none;">
+    <label for="statusSelect">Select Status:</label>
+    <select id="statusSelect">
+        <option value="">Delete</option>
+        <option value="WFH">WFH</option>
+        <option value="OFFC">OFFC</option>
+        <option value="EL">EL</option>
+        <option value="SL">SL</option>
+        <option value="PH">PH</option>
+        <option value="TRAIN">TRAIN</option>
+    </select>
+    <button onclick="applyStatus()">Apply</button>
+    <button onclick="closeModal()">Cancel</button>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
