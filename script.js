@@ -6,9 +6,27 @@
 */
 
 const START_YEAR = 2025, END_YEAR = 2040;
-const STATUS_KEYS = ["WFH", "OFFC", "TRAIN", "EL", "SL", "PH"];
+const STATUS_KEYS = ["WFH", "OFC", "TRAIN", "LEAVE", "PH"];
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+// Map full voice phrases to their shortcut keys
+const VOICE_STATUS_MAP = {
+  "work from home": "WFH",
+  "wfh": "WFH",
+  "office": "OFC",
+  "ofc": "OFC",
+  "training": "TRAIN",
+  "train": "TRAIN",
+  "leave": "LEAVE",
+  "sick leave": "LEAVE",
+  "earned leave": "LEAVE",
+  "el": "LEAVE",
+  "sl": "LEAVE",
+  "public holiday": "PH",
+  "ph": "PH",
+  "holiday": "PH"
+};
 
 // application state
 let schedule = {};
@@ -128,7 +146,7 @@ function buildMonthView(year, month) {
   DAY_NAMES.forEach(day => {
     const header = document.createElement('div');
     header.classList.add('day-header');
-    header.textContent = day;
+    header.textContent = day.substring(0, 3);
     dayHeaders.appendChild(header);
   });
   monthContainer.appendChild(dayHeaders);
@@ -208,6 +226,9 @@ function buildYearView(year) {
   for (let m = 1; m <= 12; m++) {
     const card = document.createElement('div');
     card.classList.add('year-month-card');
+    card.dataset.year = year;
+    card.dataset.month = m;
+
     const monthHeader = document.createElement('h4');
     monthHeader.textContent = MONTH_NAMES[m - 1];
     card.appendChild(monthHeader);
@@ -230,7 +251,7 @@ function buildYearView(year) {
       const dayCell = document.createElement('div');
       dayCell.classList.add('day-cell');
       dayCell.style.minHeight = '10px';
-      dayCell.style.padding = '5px';
+      dayCell.style.padding = '2px';
       
       const date = new Date(year, m-1, d);
       if (date.getDay() === 0 || date.getDay() === 6) {
@@ -245,6 +266,13 @@ function buildYearView(year) {
     }
     card.appendChild(grid);
     yearContainer.appendChild(card);
+
+    // Event listener to switch to Month tab
+    card.addEventListener('click', () => {
+      currentYear = year;
+      currentMonth = m;
+      showView('month');
+    });
   }
 }
 
@@ -269,8 +297,8 @@ function updateSummary(year, month) {
 
   for (const status in counts) {
     const item = document.createElement('div');
-    item.classList.add('summary-item');
-    item.innerHTML = `<span>${status}</span><span>${counts[status]}</span>`;
+    item.classList.add('summary-row', status);
+    item.innerHTML = `<div>${status}</div><div>${counts[status]}</div>`;
     summaryPanel.appendChild(item);
   }
 }
@@ -283,6 +311,7 @@ function clearMonth() {
   }
   saveSchedule();
   refreshViews();
+  alert('All entries for this month have been cleared.');
 }
 
 // voice recognition logic
@@ -307,58 +336,155 @@ function startVoiceRecognition() {
   };
 }
 
-function parseVoice(text) {
-  const statusPattern = STATUS_KEYS.map(s => s.toLowerCase()).join('|');
-
-  // Handle "next week..."
-  const nextWeekMatch = text.match(new RegExp(`next week (${statusPattern})`));
-  if (nextWeekMatch) {
-    const selectedStatus = nextWeekMatch[1].toUpperCase();
-    const today = new Date();
-    const nextSunday = new Date(today);
-    nextSunday.setDate(today.getDate() + (7 - today.getDay()));
-    for (let i = 0; i < 5; i++) {
-      const d = new Date(nextSunday);
-      d.setDate(nextSunday.getDate() + i + 1);
-      const dateISO = iso(d.getFullYear(), d.getMonth() + 1, d.getDate());
-      schedule[dateISO] = selectedStatus;
+// Helper to get a date from a phrase like "today", "tomorrow", "next monday"
+function getDateFromPhrase(phrase) {
+  const today = new Date();
+  const lowerPhrase = phrase.toLowerCase();
+  
+  if (lowerPhrase.includes("today")) {
+    return today;
+  }
+  if (lowerPhrase.includes("tomorrow")) {
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    return tomorrow;
+  }
+  if (lowerPhrase.includes("this")) {
+    const dayName = lowerPhrase.split('this ')[1];
+    const dayIndex = DAY_NAMES.map(d => d.toLowerCase()).indexOf(dayName);
+    if (dayIndex !== -1) {
+      const day = new Date(today);
+      const diff = dayIndex - day.getDay();
+      day.setDate(day.getDate() + diff);
+      return day;
     }
-    saveSchedule(); refreshViews(); return;
+  }
+  if (lowerPhrase.includes("next")) {
+    const dayName = lowerPhrase.split('next ')[1];
+    const dayIndex = DAY_NAMES.map(d => d.toLowerCase()).indexOf(dayName);
+    if (dayIndex !== -1) {
+      const day = new Date(today);
+      const diff = dayIndex - day.getDay();
+      day.setDate(day.getDate() + 7 + (diff > 0 ? diff : diff + 7));
+      return day;
+    }
+  }
+  return null;
+}
+
+function parseVoice(text) {
+  const statusPhrases = Object.keys(VOICE_STATUS_MAP).join('|');
+  const monthNamesRegex = MONTH_NAMES.map(m=>m.toLowerCase()).join('|');
+  
+  // Get status from phrase
+  const getStatus = (t) => {
+    for (const phrase in VOICE_STATUS_MAP) {
+      if (t.includes(phrase)) {
+        return VOICE_STATUS_MAP[phrase];
+      }
+    }
+    return null;
+  };
+
+  // 1. Handle "Clear" commands
+  const clearMonthMatch = text.match(/clear this month/);
+  if (clearMonthMatch) {
+    clearMonth();
+    return;
+  }
+  const clearDateMatch = text.match(new RegExp(`(?:clear|remove) (?:the )?(\\d+)(?:st|nd|rd|th)?(?: of )?(${monthNamesRegex})?`));
+  if (clearDateMatch) {
+    const day = parseInt(clearDateMatch[1]);
+    const monthName = clearDateMatch[2];
+    const monthIdx = monthName ? MONTH_NAMES.map(m=>m.toLowerCase()).indexOf(monthName) : currentMonth - 1;
+    const dateISO = iso(currentYear, monthIdx + 1, day);
+    if (schedule[dateISO]) {
+      delete schedule[dateISO];
+      saveSchedule();
+      refreshViews();
+      alert(`Cleared entry for ${day} ${MONTH_NAMES[monthIdx]}.`);
+    } else {
+      alert(`No entry found for ${day} ${MONTH_NAMES[monthIdx]}.`);
+    }
+    return;
+  }
+
+  // 2. Handle simple status assignments with relative dates (Today, Tomorrow, Weekdays)
+  const relativeDateMatch = text.match(new RegExp(`(${DAY_NAMES.map(d=>d.toLowerCase()).join('|')}|today|tomorrow|this\\s*${DAY_NAMES.map(d=>d.toLowerCase()).join('|')}|next\\s*${DAY_NAMES.map(d=>d.toLowerCase()).join('|')}) is (${statusPhrases})`));
+  if (relativeDateMatch) {
+    const phrase = relativeDateMatch[1];
+    const status = getStatus(relativeDateMatch[2]);
+    const date = getDateFromPhrase(phrase);
+    if(date && status) {
+      const dateISO = iso(date.getFullYear(), date.getMonth() + 1, date.getDate());
+      schedule[dateISO] = status;
+      saveSchedule(); refreshViews();
+      alert(`Set ${phrase} to ${status}.`);
+      return;
+    }
   }
   
-  // Handle "1 to 5 march..."
-  const rangeMatch = text.match(/(\d+)\s*(?:to|-)\s*(\d+)\s*(\w+)\s*(\w+)?/);
+  // 3. Handle "next week..."
+  const nextWeekMatch = text.match(new RegExp(`next week (${statusPhrases})`));
+  if (nextWeekMatch) {
+    const selectedStatus = getStatus(nextWeekMatch[1]);
+    if (selectedStatus) {
+      const today = new Date();
+      const nextMonday = new Date(today);
+      nextMonday.setDate(today.getDate() + (8 - today.getDay()));
+      for (let i = 0; i < 5; i++) {
+        const d = new Date(nextMonday);
+        d.setDate(nextMonday.getDate() + i);
+        const dateISO = iso(d.getFullYear(), d.getMonth() + 1, d.getDate());
+        schedule[dateISO] = selectedStatus;
+      }
+      saveSchedule(); refreshViews();
+      alert(`Set next week to ${selectedStatus}.`);
+      return;
+    }
+  }
+
+  // 4. Handle date ranges
+  const rangeMatch = text.match(new RegExp(`(\\d+)\\s*(?:to|-)\\s*(\\d+)(?:th)?\\s*(${monthNamesRegex})\\s*(${statusPhrases})`));
   if (rangeMatch) {
     const fromDay = parseInt(rangeMatch[1]);
     const toDay = parseInt(rangeMatch[2]);
-    const monthName = rangeMatch[3].charAt(0).toUpperCase() + rangeMatch[3].slice(1);
-    const monthIdx = MONTH_NAMES.indexOf(monthName);
-    const status = (rangeMatch[4] || "").toUpperCase();
+    const monthName = rangeMatch[3];
+    const monthIdx = MONTH_NAMES.map(m=>m.toLowerCase()).indexOf(monthName);
+    const status = getStatus(rangeMatch[4]);
 
     if (monthIdx !== -1 && fromDay <= toDay && status) {
       for (let day = fromDay; day <= toDay; day++) {
         const dateISO = iso(currentYear, monthIdx + 1, day);
         schedule[dateISO] = status;
       }
-      saveSchedule(); refreshViews(); return;
+      saveSchedule(); refreshViews();
+      alert(`Set ${fromDay} to ${toDay} ${monthName} to ${status}.`);
+      return;
     }
   }
 
-  // Handle "mark 10 april train" or similar
-  const markSingleDayMatch = text.match(new RegExp(`(?:mark|on)?\\s*(\\d+)(?:st|nd|rd|th)?\\s*(${MONTH_NAMES.map(m=>m.toLowerCase()).join('|')})\\s*(${statusPattern})`));
-  if (markSingleDayMatch) {
-    const day = parseInt(markSingleDayMatch[1]);
-    const monthName = markSingleDayMatch[2];
-    const status = markSingleDayMatch[3].toUpperCase();
-    const monthIdx = MONTH_NAMES.map(m=>m.toLowerCase()).indexOf(monthName);
-    if(monthIdx !== -1 && !isNaN(day)) {
+  // 5. Handle single-day assignments
+  const singleDayMatch = text.match(new RegExp(`(?:mark|on)?\\s*(\\d+)(?:st|nd|rd|th)?\\s*(?:of)?\\s*(${monthNamesRegex})?\\s*(${statusPhrases})`));
+  if (singleDayMatch) {
+    const day = parseInt(singleDayMatch[1]);
+    const monthName = singleDayMatch[2];
+    const status = getStatus(singleDayMatch[3]);
+    let monthIdx = currentMonth - 1;
+    if (monthName) {
+      monthIdx = MONTH_NAMES.map(m=>m.toLowerCase()).indexOf(monthName);
+    }
+    
+    if(!isNaN(day) && status) {
       const dateISO = iso(currentYear, monthIdx + 1, day);
       schedule[dateISO] = status;
-      saveSchedule(); refreshViews(); return;
+      saveSchedule(); refreshViews();
+      alert(`Set ${day} ${MONTH_NAMES[monthIdx]} to ${status}.`);
+      return;
     }
   }
 
-  alert('Could not parse dates from voice. Try "next week WFH", "1 to 5 March OFFC", or "Mark 10 April TRAIN".');
+  alert('Could not parse voice command. Try a different format like "next week WFH" or "5 to 10 March sick leave".');
 }
 
 
