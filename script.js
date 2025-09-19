@@ -55,8 +55,10 @@ const summaryPrev = document.getElementById('summaryPrev');
 const summaryNext = document.getElementById('summaryNext');
 const statusBtns = document.querySelectorAll('.status-btn');
 const clearSingleBtn = document.getElementById('clearSingleBtn');
-const clearMonthBtn = document.getElementById('clearMonthBtn');
-const voiceBtn = document.getElementById('voiceBtn');
+
+const voiceBtnMonth = document.getElementById('voiceBtnMonth');
+const voiceBtnYear = document.getElementById('voiceBtnYear');
+const voiceBtnSummary = document.getElementById('voiceBtnSummary');
 
 const summaryTabs = document.querySelectorAll('.summary-tab-btn');
 const summaryMonthTab = document.getElementById('summaryMonth');
@@ -71,6 +73,35 @@ const rangeEndInput = document.getElementById('rangeEnd');
 const generateRangeSummaryBtn = document.getElementById('generateRangeSummary');
 const summaryPanelRange = document.getElementById('summaryPanelRange');
 
+// voice functionality
+const speechSynth = window.speechSynthesis;
+function speak(text) {
+  if (speechSynth.speaking) return;
+  const utterance = new SpeechSynthesisUtterance(text);
+  speechSynth.speak(utterance);
+}
+
+function startVoiceRecognition(parseFunction) {
+  if (!('webkitSpeechRecognition' in window)) {
+    speak('Voice recognition not supported. Try Chrome on Android.');
+    return;
+  }
+  const recognition = new webkitSpeechRecognition();
+  recognition.lang = 'en-US';
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript.toLowerCase();
+    parseFunction(transcript);
+  };
+  recognition.onerror = (event) => {
+    console.error('Speech recognition error:', event.error);
+    speak('Voice recognition error. Please try again.');
+  };
+  recognition.start();
+}
+
 // event listeners
 prevBtn.addEventListener('click', () => changeMonth(-1));
 nextBtn.addEventListener('click', () => changeMonth(1));
@@ -83,8 +114,10 @@ summaryYearPrev.addEventListener('click', () => updateSummaryYearly(summaryCurre
 summaryYearNext.addEventListener('click', () => updateSummaryYearly(summaryCurrentYear + 1));
 generateRangeSummaryBtn.addEventListener('click', () => updateSummaryRange());
 clearSingleBtn.addEventListener('click', () => selectedStatus = "");
-clearMonthBtn.addEventListener('click', () => clearMonth());
-voiceBtn.addEventListener('click', () => startVoiceRecognition());
+
+voiceBtnMonth.addEventListener('click', () => startVoiceRecognition(parseVoiceMonth));
+voiceBtnYear.addEventListener('click', () => startVoiceRecognition(parseVoiceYear));
+voiceBtnSummary.addEventListener('click', () => startVoiceRecognition(parseVoiceSummary));
 
 statusBtns.forEach(btn => {
   btn.addEventListener('click', () => {
@@ -136,10 +169,6 @@ function showView(viewName) {
   yearView.style.display = 'none';
   summaryView.style.display = 'none';
 
-  actionBar.style.display = 'flex';
-  prevBtn.style.display = 'flex';
-  nextBtn.style.display = 'flex';
-
   if (viewName === 'month') {
     tabMonth.classList.add('active');
     monthView.style.display = 'block';
@@ -151,9 +180,6 @@ function showView(viewName) {
   } else if (viewName === 'summary') {
     tabSummary.classList.add('active');
     summaryView.style.display = 'block';
-    actionBar.style.display = 'none';
-    prevBtn.style.display = 'none';
-    nextBtn.style.display = 'none';
     const activeTab = document.querySelector('.summary-tab-btn.active').dataset.tab;
     if (activeTab === 'month') updateSummaryMonthly(currentYear, currentMonth);
     else if (activeTab === 'year') updateSummaryYearly(summaryCurrentYear);
@@ -225,8 +251,7 @@ function buildMonthView(year, month) {
     }
 
     dayCell.addEventListener('click', () => {
-      if (dayCell.classList.contains('weekend')) return;
-      if (selectedStatus === "CLEARMONTH") { return; }
+      if (dayCell.classList.contains('weekend') || selectedStatus === null) return;
       
       const prevStatus = schedule[dateISO];
       schedule[dateISO] = selectedStatus;
@@ -294,6 +319,10 @@ function buildYearView(year) {
       const dayCell = document.createElement('div');
       dayCell.classList.add('day-cell');
       
+      const dayNumber = document.createElement('span');
+      dayNumber.textContent = d;
+      dayCell.appendChild(dayNumber);
+
       const date = new Date(year, m-1, d);
       if (date.getDay() === 0 || date.getDay() === 6) {
         dayCell.classList.add('weekend');
@@ -341,6 +370,7 @@ function updateSummaryMonthly(year, month) {
     item.innerHTML = `<div>${status}</div><div>${counts[status]}</div>`;
     summaryPanelMonth.appendChild(item);
   }
+  return counts;
 }
 
 function updateSummaryYearly(year) {
@@ -367,6 +397,7 @@ function updateSummaryYearly(year) {
     item.innerHTML = `<div>${status}</div><div>${counts[status]}</div>`;
     summaryPanelYear.appendChild(item);
   }
+  return counts;
 }
 
 function updateSummaryRange() {
@@ -376,7 +407,7 @@ function updateSummaryRange() {
 
   if (isNaN(startDate) || isNaN(endDate) || startDate > endDate) {
     summaryPanelRange.innerHTML = '<p>Please select a valid date range.</p>';
-    return;
+    return {};
   }
 
   const counts = STATUS_KEYS.reduce((acc, status) => ({ ...acc, [status]: 0 }), {});
@@ -397,39 +428,212 @@ function updateSummaryRange() {
     item.innerHTML = `<div>${status}</div><div>${counts[status]}</div>`;
     summaryPanelRange.appendChild(item);
   }
+  return counts;
 }
 
-function clearMonth() {
-  const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
-  for (let day = 1; day <= daysInMonth; day++) {
-    const dateISO = iso(currentYear, currentMonth, day);
-    delete schedule[dateISO];
+// voice parsing functions
+function parseVoiceMonth(text) {
+  const statusPhrases = Object.keys(VOICE_STATUS_MAP).join('|');
+  const monthNamesRegex = MONTH_NAMES.map(m=>m.toLowerCase()).join('|');
+  
+  const getStatus = (t) => {
+    for (const phrase in VOICE_STATUS_MAP) {
+      if (t.includes(phrase)) {
+        return VOICE_STATUS_MAP[phrase];
+      }
+    }
+    return null;
+  };
+  
+  const navMonthMatch = text.match(new RegExp(`(?:go to|show|display) (?:the )?(${monthNamesRegex})`));
+  if (navMonthMatch) {
+    const monthName = navMonthMatch[1];
+    const monthIdx = MONTH_NAMES.map(m=>m.toLowerCase()).indexOf(monthName);
+    if(monthIdx !== -1) {
+      currentMonth = monthIdx + 1;
+      showView('month');
+      speak(`Navigating to ${monthName}.`);
+      return;
+    }
   }
-  saveSchedule();
-  refreshViews();
-  alert('All entries for this month have been cleared.');
-}
-
-// voice recognition logic
-function startVoiceRecognition() {
-  if (!('webkitSpeechRecognition' in window)) {
-    alert('Voice recognition not supported. Try Chrome on Android.');
+  
+  const nextPrevMatch = text.match(new RegExp(`(next|previous) month`));
+  if(nextPrevMatch) {
+    const direction = nextPrevMatch[1] === 'next' ? 1 : -1;
+    changeMonth(direction);
+    speak(`${nextPrevMatch[1]} month.`);
     return;
   }
-  const recognition = new webkitSpeechRecognition();
-  recognition.lang = 'en-US';
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
+  
+  const clearDateMatch = text.match(new RegExp(`(?:clear|remove) (?:the )?(\\d+)(?:st|nd|rd|th)?(?: of )?(${monthNamesRegex})?`));
+  if (clearDateMatch) {
+    const day = parseInt(clearDateMatch[1]);
+    const monthName = clearDateMatch[2];
+    const monthIdx = monthName ? MONTH_NAMES.map(m=>m.toLowerCase()).indexOf(monthName) : currentMonth - 1;
+    const dateISO = iso(currentYear, monthIdx + 1, day);
+    if (schedule[dateISO]) {
+      delete schedule[dateISO];
+      saveSchedule();
+      refreshViews();
+      speak(`Cleared entry for ${day} ${MONTH_NAMES[monthIdx]}.`);
+    } else {
+      speak(`No entry found for ${day} ${MONTH_NAMES[monthIdx]}.`);
+    }
+    return;
+  }
 
-  recognition.start();
-  recognition.onresult = (event) => {
-    const transcript = event.results[0][0].transcript.toLowerCase();
-    parseVoice(transcript);
-  };
-  recognition.onerror = (event) => {
-    console.error('Speech recognition error:', event.error);
-    alert('Voice recognition error. Please try again.');
-  };
+  const relativeDateMatch = text.match(new RegExp(`(${DAY_NAMES.map(d=>d.toLowerCase()).join('|')}|today|tomorrow|this\\s*${DAY_NAMES.map(d=>d.toLowerCase()).join('|')}|next\\s*${DAY_NAMES.map(d=>d.toLowerCase()).join('|')}) is (${statusPhrases})`));
+  if (relativeDateMatch) {
+    const phrase = relativeDateMatch[1];
+    const status = getStatus(relativeDateMatch[2]);
+    const date = getDateFromPhrase(phrase);
+    if(date && status) {
+      const dateISO = iso(date.getFullYear(), date.getMonth() + 1, date.getDate());
+      schedule[dateISO] = status;
+      saveSchedule(); refreshViews();
+      speak(`Set ${phrase} to ${status}.`);
+      return;
+    }
+  }
+  
+  const nextWeekMatch = text.match(new RegExp(`next week (${statusPhrases})`));
+  if (nextWeekMatch) {
+    const selectedStatus = getStatus(nextWeekMatch[1]);
+    if (selectedStatus) {
+      const today = new Date();
+      const nextMonday = new Date(today);
+      nextMonday.setDate(today.getDate() + (8 - today.getDay()));
+      for (let i = 0; i < 5; i++) {
+        const d = new Date(nextMonday);
+        d.setDate(nextMonday.getDate() + i);
+        const dateISO = iso(d.getFullYear(), d.getMonth() + 1, d.getDate());
+        schedule[dateISO] = selectedStatus;
+      }
+      saveSchedule(); refreshViews();
+      speak(`Set next week to ${selectedStatus}.`);
+      return;
+    }
+  }
+
+  const rangeMatch = text.match(new RegExp(`(\\d+)\\s*(?:to|-)\\s*(\\d+)(?:th)?\\s*(${monthNamesRegex})\\s*(${statusPhrases})`));
+  if (rangeMatch) {
+    const fromDay = parseInt(rangeMatch[1]);
+    const toDay = parseInt(rangeMatch[2]);
+    const monthName = rangeMatch[3];
+    const monthIdx = MONTH_NAMES.map(m=>m.toLowerCase()).indexOf(monthName);
+    const status = getStatus(rangeMatch[4]);
+
+    if (monthIdx !== -1 && fromDay <= toDay && status) {
+      for (let day = fromDay; day <= toDay; day++) {
+        const dateISO = iso(currentYear, monthIdx + 1, day);
+        schedule[dateISO] = status;
+      }
+      saveSchedule(); refreshViews();
+      speak(`Set ${fromDay} to ${toDay} of ${monthName} to ${status}.`);
+      return;
+    }
+  }
+
+  const singleDayMatch = text.match(new RegExp(`(?:mark|on)?\\s*(\\d+)(?:st|nd|rd|th)?\\s*(?:of)?\\s*(${monthNamesRegex})?\\s*(${statusPhrases})`));
+  if (singleDayMatch) {
+    const day = parseInt(singleDayMatch[1]);
+    const monthName = singleDayMatch[2];
+    const status = getStatus(singleDayMatch[3]);
+    let monthIdx = currentMonth - 1;
+    if (monthName) {
+      monthIdx = MONTH_NAMES.map(m=>m.toLowerCase()).indexOf(monthName);
+    }
+    
+    if(!isNaN(day) && status) {
+      const dateISO = iso(currentYear, monthIdx + 1, day);
+      schedule[dateISO] = status;
+      saveSchedule(); refreshViews();
+      speak(`Set ${day} ${MONTH_NAMES[monthIdx]} to ${status}.`);
+      return;
+    }
+  }
+  speak('Could not parse voice command. Try a different format.');
+}
+
+function parseVoiceYear(text) {
+  const yearMatch = text.match(/(next|previous) year/);
+  if (yearMatch) {
+    const direction = yearMatch[1] === 'next' ? 1 : -1;
+    currentYear += direction;
+    if (currentYear < START_YEAR) currentYear = START_YEAR;
+    if (currentYear > END_YEAR) currentYear = END_YEAR;
+    refreshViews();
+    speak(`${yearMatch[1]} year. Now showing ${currentYear}.`);
+    return;
+  }
+  speak('I can only change the year here. Try saying "next year" or "previous year".');
+}
+
+function parseVoiceSummary(text) {
+  const monthNamesRegex = MONTH_NAMES.map(m=>m.toLowerCase()).join('|');
+  const summaryTypeMatch = text.match(/(monthly|yearly|range) summary/);
+  if (summaryTypeMatch) {
+    const tabName = summaryTypeMatch[1];
+    document.querySelector(`.summary-tab-btn[data-tab="${tabName}"]`).click();
+    speak(`Showing ${tabName} summary.`);
+    return;
+  }
+
+  const monthlyNavMatch = text.match(new RegExp(`(?:show|display|get) (?:monthly summary for )?(${monthNamesRegex})`));
+  if (monthlyNavMatch) {
+    const monthName = monthlyNavMatch[1];
+    const monthIdx = MONTH_NAMES.map(m=>m.toLowerCase()).indexOf(monthName);
+    if(monthIdx !== -1) {
+      document.querySelector(`.summary-tab-btn[data-tab="month"]`).click();
+      const counts = updateSummaryMonthly(currentYear, monthIdx + 1);
+      let response = `Summary for ${monthName}.`;
+      for(const status in counts) {
+        if(counts[status] > 0) {
+          response += ` ${counts[status]} days of ${status}.`;
+        }
+      }
+      speak(response);
+      return;
+    }
+  }
+
+  const rangeSummaryMatch = text.match(new RegExp(`(?:show|display|get) summary from (\\d+)\\s*(?:to|-)\\s*(\\d+) of (${monthNamesRegex})`));
+  if (rangeSummaryMatch) {
+    const fromDay = parseInt(rangeSummaryMatch[1]);
+    const toDay = parseInt(rangeSummaryMatch[2]);
+    const monthName = rangeSummaryMatch[3];
+    const monthIdx = MONTH_NAMES.map(m=>m.toLowerCase()).indexOf(monthName);
+    if(monthIdx !== -1) {
+      document.querySelector('.summary-tab-btn[data-tab="range"]').click();
+      rangeStartInput.value = iso(currentYear, monthIdx + 1, fromDay);
+      rangeEndInput.value = iso(currentYear, monthIdx + 1, toDay);
+      const counts = updateSummaryRange();
+      let response = `Summary from ${fromDay} to ${toDay} of ${monthName}.`;
+      for(const status in counts) {
+        if(counts[status] > 0) {
+          response += ` ${counts[status]} days of ${status}.`;
+        }
+      }
+      speak(response);
+      return;
+    }
+  }
+
+  const yearSummaryMatch = text.match(/(?:show|display|get) yearly summary/);
+  if(yearSummaryMatch) {
+    document.querySelector('.summary-tab-btn[data-tab="year"]').click();
+    const counts = updateSummaryYearly(summaryCurrentYear);
+    let response = `Yearly summary for ${summaryCurrentYear}.`;
+    for(const status in counts) {
+      if(counts[status] > 0) {
+        response += ` ${counts[status]} days of ${status}.`;
+      }
+    }
+    speak(response);
+    return;
+  }
+  
+  speak('Could not parse summary command. Try a different format like "show monthly summary for January" or "show yearly summary".');
 }
 
 function getDateFromPhrase(phrase) {
@@ -466,116 +670,6 @@ function getDateFromPhrase(phrase) {
   }
   return null;
 }
-
-function parseVoice(text) {
-  const statusPhrases = Object.keys(VOICE_STATUS_MAP).join('|');
-  const monthNamesRegex = MONTH_NAMES.map(m=>m.toLowerCase()).join('|');
-  
-  const getStatus = (t) => {
-    for (const phrase in VOICE_STATUS_MAP) {
-      if (t.includes(phrase)) {
-        return VOICE_STATUS_MAP[phrase];
-      }
-    }
-    return null;
-  };
-
-  const clearMonthMatch = text.match(/clear this month/);
-  if (clearMonthMatch) {
-    clearMonth();
-    return;
-  }
-  const clearDateMatch = text.match(new RegExp(`(?:clear|remove) (?:the )?(\\d+)(?:st|nd|rd|th)?(?: of )?(${monthNamesRegex})?`));
-  if (clearDateMatch) {
-    const day = parseInt(clearDateMatch[1]);
-    const monthName = clearDateMatch[2];
-    const monthIdx = monthName ? MONTH_NAMES.map(m=>m.toLowerCase()).indexOf(monthName) : currentMonth - 1;
-    const dateISO = iso(currentYear, monthIdx + 1, day);
-    if (schedule[dateISO]) {
-      delete schedule[dateISO];
-      saveSchedule();
-      refreshViews();
-      alert(`Cleared entry for ${day} ${MONTH_NAMES[monthIdx]}.`);
-    } else {
-      alert(`No entry found for ${day} ${MONTH_NAMES[monthIdx]}.`);
-    }
-    return;
-  }
-
-  const relativeDateMatch = text.match(new RegExp(`(${DAY_NAMES.map(d=>d.toLowerCase()).join('|')}|today|tomorrow|this\\s*${DAY_NAMES.map(d=>d.toLowerCase()).join('|')}|next\\s*${DAY_NAMES.map(d=>d.toLowerCase()).join('|')}) is (${statusPhrases})`));
-  if (relativeDateMatch) {
-    const phrase = relativeDateMatch[1];
-    const status = getStatus(relativeDateMatch[2]);
-    const date = getDateFromPhrase(phrase);
-    if(date && status) {
-      const dateISO = iso(date.getFullYear(), date.getMonth() + 1, date.getDate());
-      schedule[dateISO] = status;
-      saveSchedule(); refreshViews();
-      alert(`Set ${phrase} to ${status}.`);
-      return;
-    }
-  }
-  
-  const nextWeekMatch = text.match(new RegExp(`next week (${statusPhrases})`));
-  if (nextWeekMatch) {
-    const selectedStatus = getStatus(nextWeekMatch[1]);
-    if (selectedStatus) {
-      const today = new Date();
-      const nextMonday = new Date(today);
-      nextMonday.setDate(today.getDate() + (8 - today.getDay()));
-      for (let i = 0; i < 5; i++) {
-        const d = new Date(nextMonday);
-        d.setDate(nextMonday.getDate() + i);
-        const dateISO = iso(d.getFullYear(), d.getMonth() + 1, d.getDate());
-        schedule[dateISO] = selectedStatus;
-      }
-      saveSchedule(); refreshViews();
-      alert(`Set next week to ${selectedStatus}.`);
-      return;
-    }
-  }
-
-  const rangeMatch = text.match(new RegExp(`(\\d+)\\s*(?:to|-)\\s*(\\d+)(?:th)?\\s*(${monthNamesRegex})\\s*(${statusPhrases})`));
-  if (rangeMatch) {
-    const fromDay = parseInt(rangeMatch[1]);
-    const toDay = parseInt(rangeMatch[2]);
-    const monthName = rangeMatch[3];
-    const monthIdx = MONTH_NAMES.map(m=>m.toLowerCase()).indexOf(monthName);
-    const status = getStatus(rangeMatch[4]);
-
-    if (monthIdx !== -1 && fromDay <= toDay && status) {
-      for (let day = fromDay; day <= toDay; day++) {
-        const dateISO = iso(currentYear, monthIdx + 1, day);
-        schedule[dateISO] = status;
-      }
-      saveSchedule(); refreshViews();
-      alert(`Set ${fromDay} to ${toDay} ${monthName} to ${status}.`);
-      return;
-    }
-  }
-
-  const singleDayMatch = text.match(new RegExp(`(?:mark|on)?\\s*(\\d+)(?:st|nd|rd|th)?\\s*(?:of)?\\s*(${monthNamesRegex})?\\s*(${statusPhrases})`));
-  if (singleDayMatch) {
-    const day = parseInt(singleDayMatch[1]);
-    const monthName = singleDayMatch[2];
-    const status = getStatus(singleDayMatch[3]);
-    let monthIdx = currentMonth - 1;
-    if (monthName) {
-      monthIdx = MONTH_NAMES.map(m=>m.toLowerCase()).indexOf(monthName);
-    }
-    
-    if(!isNaN(day) && status) {
-      const dateISO = iso(currentYear, monthIdx + 1, day);
-      schedule[dateISO] = status;
-      saveSchedule(); refreshViews();
-      alert(`Set ${day} ${MONTH_NAMES[monthIdx]} to ${status}.`);
-      return;
-    }
-  }
-
-  alert('Could not parse voice command. Try a different format like "next week WFH" or "5 to 10 March sick leave".');
-}
-
 
 // helper function for ISO format
 function iso(year, month, day) {

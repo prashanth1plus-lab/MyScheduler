@@ -24,30 +24,34 @@
       <button id="nextBtn" class="nav-btn">&gt;</button>
     </section>
 
-    <section id="actionBar" class="status-row">
-      <div class="status-left">
-        <button class="status-btn" data-status="WFH">WFH</button>
-        <button class="status-btn" data-status="OFC">OFC</button>
-        <button class="status-btn" data-status="TRAIN">TRAIN</button>
-        <button class="status-btn" data-status="LEAVE">EL/SL</button>
-        <button class="status-btn" data-status="PH">PH</button>
-        <button id="clearSingleBtn" class="status-btn" data-status="">CLEAR</button>
-      </div>
-      <div class="status-right">
-        <button id="voiceBtn" class="voice-btn" title="Use Chrome on Android for best voice support">🎤 Voice</button>
-        <button id="clearMonthBtn" class="status-btn" data-status="CLEARMONTH">CLEAR MONTH</button>
-      </div>
-    </section>
-
     <section id="monthView" class="view">
+      <section id="actionBar" class="status-row">
+        <div class="status-left">
+          <button class="status-btn" data-status="WFH">WFH</button>
+          <button class="status-btn" data-status="OFC">OFC</button>
+          <button class="status-btn" data-status="TRAIN">TRAIN</button>
+          <button class="status-btn" data-status="LEAVE">EL/SL</button>
+          <button class="status-btn" data-status="PH">PH</button>
+          <button id="clearSingleBtn" class="status-btn" data-status="">CLEAR</button>
+        </div>
+        <div class="status-right">
+          <button id="voiceBtnMonth" class="voice-btn" title="Use Chrome on Android for best voice support">🎤 Voice</button>
+        </div>
+      </section>
       <div id="monthContainer" class="month-container"></div>
     </section>
 
     <section id="yearView" class="view" style="display:none;">
+      <section class="status-row">
+        <button id="voiceBtnYear" class="voice-btn" title="Use Chrome on Android for best voice support">🎤 Voice</button>
+      </section>
       <div id="yearContainer" class="year-container"></div>
     </section>
 
     <section id="summaryView" class="view" style="display:none;">
+      <section class="status-row">
+        <button id="voiceBtnSummary" class="voice-btn" title="Use Chrome on Android for best voice support">🎤 Voice</button>
+      </section>
       <nav class="summary-tabs">
         <button class="summary-tab-btn active" data-tab="month">Month</button>
         <button class="summary-tab-btn" data-tab="year">Year</button>
