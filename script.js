@@ -395,8 +395,14 @@ function buildMonthView(y, m) {
           halfDayBtn.textContent = 'Half Day';
           halfDayBtn.addEventListener('click', (e) => {
               e.stopPropagation();
-              // Automatically apply EL and last base status for half day
-              const finalStatus = `EL_${lastBaseStatus}`;
+              const existingStatus = schedule[dateISO];
+              let workStatus = 'WFH'; // Default to WFH
+              if (existingStatus === 'WFH' || existingStatus === 'OFC' || existingStatus === 'TRAIN') {
+                workStatus = existingStatus;
+              } else if (lastBaseStatus) {
+                workStatus = lastBaseStatus;
+              }
+              const finalStatus = `SL/EL_${workStatus}`;
               schedule[dateISO] = finalStatus;
               saveSchedule();
               refreshViews();
