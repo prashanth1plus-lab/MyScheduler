@@ -3,20 +3,25 @@ table { width: 100%; border-collapse: collapse; }
 td { width:14%; height:60px; text-align:center; border:1px solid #ccc; cursor:pointer; }
 .weekend { background-color: #000; color:#fff; }
 .today { border:2px solid #f00; }
+
 .WFH { background-color: #5dade2; color:#fff; }
 .OFFC { background-color: #27ae60; color:#fff; }
 .EL, .SL { background-color: #e74c3c; color:#fff; }
 .PH { background-color: #f39c12; color:#fff; }
 .TRAIN { background-color: #8e44ad; color:#fff; }
 
-#summaryOnlyContainer, #monthly-summary-panel { margin-top: 10px; }
+#statusButtons { margin:10px 0; text-align:center; }
+.status-btn { margin:2px; padding:6px 12px; cursor:pointer; border:none; border-radius:4px; color:#fff; }
+.status-btn[data-status="WFH"]{ background:#5dade2; }
+.status-btn[data-status="OFFC"]{ background:#27ae60; }
+.status-btn[data-status="EL"]{ background:#e74c3c; }
+.status-btn[data-status="SL"]{ background:#e74c3c; }
+.status-btn[data-status="PH"]{ background:#f39c12; }
+.status-btn[data-status="TRAIN"]{ background:#8e44ad; }
+.status-btn[data-status=""]{ background:#7f8c8d; }
 
-#statusModal {
-    position:fixed; top:30%; left:50%; transform:translateX(-50%);
-    background:#fff; border:1px solid #ccc; padding:10px; z-index:1000;
-}
-button { padding:0.5rem 1rem; margin:2px; }
+#summaryOnlyContainer { margin-top: 10px; }
+
 @media screen and (max-width:768px){
     td { height:50px; font-size:0.8rem; }
-    #summaryOnlyContainer, #monthly-summary-panel { width:100%; float:none; }
 }

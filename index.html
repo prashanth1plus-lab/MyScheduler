@@ -10,30 +10,27 @@
 <body>
 <div id="app">
     <button id="toggleViewBtn">Switch to Summary View</button>
+    
     <div id="calendarContainer">
         <table id="calendarTable"></table>
     </div>
+
+    <div id="statusButtons">
+        <button class="status-btn" data-status="WFH">WFH</button>
+        <button class="status-btn" data-status="OFFC">OFFC</button>
+        <button class="status-btn" data-status="EL">EL</button>
+        <button class="status-btn" data-status="SL">SL</button>
+        <button class="status-btn" data-status="PH">PH</button>
+        <button class="status-btn" data-status="TRAIN">TRAIN</button>
+        <button class="status-btn" data-status="">Clear</button>
+    </div>
+
+    <button id="voiceBtn">🎤 Start Voice Command</button>
+
     <div id="summaryOnlyContainer" style="display:none;">
         <h3>📊 Monthly Summary</h3>
         <div id="monthly-summary-panel-summary-only"></div>
     </div>
-    <div id="monthly-summary-panel"></div>
-</div>
-
-<!-- Status Modal for mobile -->
-<div id="statusModal" style="display:none;">
-    <label for="statusSelect">Select Status:</label>
-    <select id="statusSelect">
-        <option value="">Delete</option>
-        <option value="WFH">WFH</option>
-        <option value="OFFC">OFFC</option>
-        <option value="EL">EL</option>
-        <option value="SL">SL</option>
-        <option value="PH">PH</option>
-        <option value="TRAIN">TRAIN</option>
-    </select>
-    <button onclick="applyStatus()">Apply</button>
-    <button onclick="closeModal()">Cancel</button>
 </div>
 
 <script src="app.js"></script>
