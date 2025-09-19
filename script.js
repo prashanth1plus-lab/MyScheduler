@@ -540,4 +540,400 @@ function updateSummaryYearly(year) {
   summaryCurrentYear = year;
   summaryYearLabel.textContent = year;
 
-  const counts = STATUS_KEYS.reduce((acc,
+  const counts = STATUS_KEYS.reduce((acc, status) => ({
+    ...acc,
+    [status]: 0
+  }), {});
+  counts['SL'] = 0;
+  counts['EL'] = 0;
+  counts['WFH'] = 0;
+  counts['OFFC'] = 0;
+
+  for (let m = 1; m <= 12; m++) {
+    const daysInMonth = new Date(year, m, 0).getDate();
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateISO = iso(year, m, day);
+      const status = schedule[dateISO];
+      if (status) {
+        const parts = status.split('_');
+        if (parts.length === 2) {
+            counts[parts[0]] += 0.5;
+            counts[parts[1]] += 0.5;
+        } else if (counts.hasOwnProperty(status)) {
+          counts[status]++;
+        }
+      }
+    }
+  }
+
+  for (const status in counts) {
+    if (status === 'SL/EL' || counts[status] === 0) continue;
+    const item = document.createElement('div');
+    item.classList.add('summary-row', status);
+    item.innerHTML = `<div>${status}</div><div>${counts[status]}</div>`;
+    summaryPanelYear.appendChild(item);
+  }
+  return counts;
+}
+
+function updateSummaryRange() {
+  const startDate = new Date(rangeStartInput.value);
+  const endDate = new Date(rangeEndInput.value);
+  summaryPanelRange.innerHTML = '';
+
+  if (isNaN(startDate) || isNaN(endDate) || startDate > endDate) {
+    summaryPanelRange.innerHTML = '<p>Please select a valid date range.</p>';
+    return {};
+  }
+
+  const counts = STATUS_KEYS.reduce((acc, status) => ({
+    ...acc,
+    [status]: 0
+  }), {});
+  counts['SL'] = 0;
+  counts['EL'] = 0;
+  counts['WFH'] = 0;
+  counts['OFFC'] = 0;
+  let currentDate = new Date(startDate);
+
+  while (currentDate <= endDate) {
+    const dateISO = iso(currentDate.getFullYear(), currentDate.getMonth() + 1, currentDate.getDate());
+    const status = schedule[dateISO];
+    if (status) {
+        const parts = status.split('_');
+        if (parts.length === 2) {
+            counts[parts[0]] += 0.5;
+            counts[parts[1]] += 0.5;
+        } else if (counts.hasOwnProperty(status)) {
+          counts[status]++;
+        }
+    }
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  for (const status in counts) {
+    if (status === 'SL/EL' || counts[status] === 0) continue;
+    const item = document.createElement('div');
+    item.classList.add('summary-row', status);
+    item.innerHTML = `<div>${status}</div><div>${counts[status]}</div>`;
+    summaryPanelRange.appendChild(item);
+  }
+  return counts;
+}
+
+// voice parsing functions
+function parseVoiceMonth(text) {
+  const statusPhrases = Object.keys(VOICE_STATUS_MAP).join('|');
+  const monthNamesRegex = MONTH_NAMES.map(m => m.toLowerCase()).join('|');
+
+  const getStatus = (t) => {
+    for (const phrase in VOICE_STATUS_MAP) {
+      if (t.includes(phrase)) {
+        return VOICE_STATUS_MAP[phrase];
+      }
+    }
+    return null;
+  };
+
+  const navMonthMatch = text.match(new RegExp(`(?:go to|show|display) (?:the )?(${monthNamesRegex})`));
+  if (navMonthMatch) {
+    const monthName = navMonthMatch[1];
+    const monthIdx = MONTH_NAMES.map(m => m.toLowerCase()).indexOf(monthName);
+    if (monthIdx !== -1) {
+      currentMonth = monthIdx + 1;
+      showView('month');
+      speak(`Navigating to ${monthName}.`);
+      return;
+    }
+  }
+
+  const nextPrevMatch = text.match(new RegExp(`(next|previous) month`));
+  if (nextPrevMatch) {
+    const direction = nextPrevMatch[1] === 'next' ? 1 : -1;
+    changeMonth(direction);
+    speak(`${nextPrevMatch[1]} month.`);
+    return;
+  }
+
+  const clearDateMatch = text.match(new RegExp(`(?:clear|remove) (?:the )?(\\d+)(?:st|nd|rd|th)?(?: of )?(${monthNamesRegex})?`));
+  if (clearDateMatch) {
+    const day = parseInt(clearDateMatch[1]);
+    const monthName = clearDateMatch[2];
+    const monthIdx = monthName ? MONTH_NAMES.map(m => m.toLowerCase()).indexOf(monthName) : currentMonth - 1;
+    const dateISO = iso(currentYear, monthIdx + 1, day);
+    if (schedule[dateISO]) {
+      delete schedule[dateISO];
+      saveSchedule();
+      refreshViews();
+      speak(`Cleared entry for ${day} ${MONTH_NAMES[monthIdx]}.`);
+    } else {
+      speak(`No entry found for ${day} ${MONTH_NAMES[monthIdx]}.`);
+    }
+    return;
+  }
+
+  const relativeDateMatch = text.match(new RegExp(`(${DAY_NAMES.map(d => d.toLowerCase()).join('|')}|today|tomorrow|this\\s*${DAY_NAMES.map(d => d.toLowerCase()).join('|')}|next\\s*${DAY_NAMES.map(d => d.toLowerCase()).join('|')}) is (${statusPhrases})`));
+  if (relativeDateMatch) {
+    const phrase = relativeDateMatch[1];
+    const status = getStatus(relativeDateMatch[2]);
+    const date = getDateFromPhrase(phrase);
+    if (date && status) {
+      const dateISO = iso(date.getFullYear(), date.getMonth() + 1, date.getDate());
+      schedule[dateISO] = status;
+      saveSchedule();
+      refreshViews();
+      speak(`Set ${phrase} to ${status}.`);
+      return;
+    }
+  }
+
+  const nextWeekMatch = text.match(new RegExp(`next week (${statusPhrases})`));
+  if (nextWeekMatch) {
+    const selectedStatus = getStatus(nextWeekMatch[1]);
+    if (selectedStatus) {
+      const today = new Date();
+      const nextMonday = new Date(today);
+      nextMonday.setDate(today.getDate() + (8 - today.getDay()));
+      for (let i = 0; i < 5; i++) {
+        const d = new Date(nextMonday);
+        d.setDate(nextMonday.getDate() + i);
+        const dateISO = iso(d.getFullYear(), d.getMonth() + 1, d.getDate());
+        schedule[dateISO] = selectedStatus;
+      }
+      saveSchedule();
+      refreshViews();
+      speak(`Set next week to ${selectedStatus}.`);
+      return;
+    }
+  }
+
+  const fullMonthMatch = text.match(new RegExp(`(mark|update|add) (${statusPhrases}) for full month`));
+  if(fullMonthMatch) {
+      const status = getStatus(fullMonthMatch[2]);
+      if (status) {
+          const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+          for (let d = 1; d <= daysInMonth; d++) {
+              const dow = new Date(currentYear, currentMonth - 1, d).getDay();
+              if (dow !== 0 && dow !== 6) {
+                  schedule[iso(currentYear, currentMonth, d)] = status;
+              }
+          }
+          saveSchedule();
+          refreshViews();
+          speak(`Marked full month to ${status}`);
+          return;
+      }
+  }
+  
+  const rangeMatch = text.match(new RegExp(`(\\d+)\\s*(?:to|-)\\s*(\\d+)(?:th)?\\s*(?:of)?\\s*(${monthNamesRegex})?\\s*(?:as|to)?\\s*(${statusPhrases})`));
+  if (rangeMatch) {
+    const fromDay = parseInt(rangeMatch[1]);
+    const toDay = parseInt(rangeMatch[2]);
+    const monthName = rangeMatch[3];
+    const status = getStatus(rangeMatch[4]);
+    const monthIdx = monthName ? MONTH_NAMES.map(m => m.toLowerCase()).indexOf(monthName) : currentMonth - 1;
+
+    if (monthIdx !== -1 && fromDay <= toDay && status) {
+      for (let day = fromDay; day <= toDay; day++) {
+        const dateISO = iso(currentYear, monthIdx + 1, day);
+        schedule[dateISO] = status;
+      }
+      saveSchedule();
+      refreshViews();
+      speak(`Set ${fromDay} to ${toDay} of ${monthName || MONTH_NAMES[currentMonth-1]} to ${status}.`);
+      return;
+    }
+  }
+
+  const singleDayMatch = text.match(new RegExp(`(?:mark|on|update|add)?\\s*(\\d+)(?:st|nd|rd|th)?\\s*(?:of)?\\s*(${monthNamesRegex})?\\s*(?:as|to)?\\s*(${statusPhrases})`));
+  if (singleDayMatch) {
+    const day = parseInt(singleDayMatch[1]);
+    const monthName = singleDayMatch[2];
+    const status = getStatus(singleDayMatch[3]);
+    let monthIdx = currentMonth - 1;
+    if (monthName) {
+      monthIdx = MONTH_NAMES.map(m => m.toLowerCase()).indexOf(monthName);
+    }
+
+    if (!isNaN(day) && status) {
+        if(status === 'SL/EL') {
+            const halfDayMatch = text.match(/(full day|half day)/);
+            if(halfDayMatch) {
+                const leaveType = text.match(/(sl|el)/);
+                if(leaveType) {
+                    schedule[iso(currentYear, monthIdx + 1, day)] = `${leaveType[1].toUpperCase()}_${lastBaseStatus}`;
+                } else {
+                    speak('Please specify SL or EL for half day.');
+                    return;
+                }
+            } else {
+                schedule[iso(currentYear, monthIdx + 1, day)] = status;
+            }
+        } else {
+            schedule[iso(currentYear, monthIdx + 1, day)] = status;
+        }
+      saveSchedule();
+      refreshViews();
+      speak(`Set ${day} ${MONTH_NAMES[monthIdx]} to ${schedule[iso(currentYear, monthIdx + 1, day)]}.`);
+      return;
+    }
+  }
+  speak('Could not parse voice command. Try a different format.');
+}
+
+function parseVoiceYear(text) {
+  const yearMatch = text.match(/(next|previous) year/);
+  if (yearMatch) {
+    const direction = yearMatch[1] === 'next' ? 1 : -1;
+    currentYear += direction;
+    if (currentYear < START_YEAR) currentYear = START_YEAR;
+    if (currentYear > END_YEAR) currentYear = END_YEAR;
+    refreshViews();
+    speak(`${yearMatch[1]} year. Now showing ${currentYear}.`);
+    return;
+  }
+  speak('I can only change the year here. Try saying "next year" or "previous year".');
+}
+
+function parseVoiceSummary(text) {
+  const monthNamesRegex = MONTH_NAMES.map(m => m.toLowerCase()).join('|');
+  const summaryTypeMatch = text.match(/(monthly|yearly|range) summary/);
+  if (summaryTypeMatch) {
+    const tabName = summaryTypeMatch[1];
+    document.querySelector(`.summary-tab-btn[data-tab="${tabName}"]`).click();
+    speak(`Showing ${tabName} summary.`);
+    return;
+  }
+
+  const monthlyNavMatch = text.match(new RegExp(`(?:show|display|get) (?:monthly summary for )?(${monthNamesRegex})`));
+  if (monthlyNavMatch) {
+    const monthName = monthlyNavMatch[1];
+    const monthIdx = MONTH_NAMES.map(m => m.toLowerCase()).indexOf(monthName);
+    if (monthIdx !== -1) {
+      document.querySelector(`.summary-tab-btn[data-tab="month"]`).click();
+      const counts = updateSummaryMonthly(currentYear, monthIdx + 1);
+      let response = `Summary for ${monthName}.`;
+      for (const status in counts) {
+        if (counts[status] > 0) {
+          response += ` ${counts[status]} days of ${status}.`;
+        }
+      }
+      speak(response);
+      return;
+    }
+  }
+
+  const rangeSummaryMatch = text.match(new RegExp(`(?:show|display|get) summary from (\\d+)\\s*(?:to|-)\\s*(\\d+) of (${monthNamesRegex})`));
+  if (rangeSummaryMatch) {
+    const fromDay = parseInt(rangeSummaryMatch[1]);
+    const toDay = parseInt(rangeSummaryMatch[2]);
+    const monthName = rangeSummaryMatch[3];
+    const monthIdx = MONTH_NAMES.map(m => m.toLowerCase()).indexOf(monthName);
+    if (monthIdx !== -1) {
+      document.querySelector('.summary-tab-btn[data-tab="range"]').click();
+      rangeStartInput.value = iso(currentYear, monthIdx + 1, fromDay);
+      rangeEndInput.value = iso(currentYear, monthIdx + 1, toDay);
+      const counts = updateSummaryRange();
+      let response = `Summary from ${fromDay} to ${toDay} of ${monthName}.`;
+      for (const status in counts) {
+        if (counts[status] > 0) {
+          response += ` ${counts[status]} days of ${status}.`;
+        }
+      }
+      speak(response);
+      return;
+    }
+  }
+
+  const yearSummaryMatch = text.match(/(?:show|display|get) yearly summary/);
+  if (yearSummaryMatch) {
+    document.querySelector('.summary-tab-btn[data-tab="year"]').click();
+    const counts = updateSummaryYearly(summaryCurrentYear);
+    let response = `Yearly summary for ${summaryCurrentYear}.`;
+    for (const status in counts) {
+      if (counts[status] > 0) {
+        response += ` ${counts[status]} days of ${status}.`;
+      }
+    }
+    speak(response);
+    return;
+  }
+
+  speak('Could not parse summary command. Try a different format like "show monthly summary for January" or "show yearly summary".');
+}
+
+function getDateFromPhrase(phrase) {
+  const today = new Date();
+  const lowerPhrase = phrase.toLowerCase();
+
+  if (lowerPhrase.includes("today")) {
+    return today;
+  }
+  if (lowerPhrase.includes("tomorrow")) {
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    return tomorrow;
+  }
+  if (lowerPhrase.includes("this")) {
+    const dayName = lowerPhrase.split('this ')[1];
+    const dayIndex = DAY_NAMES.map(d => d.toLowerCase()).indexOf(dayName);
+    if (dayIndex !== -1) {
+      const day = new Date(today);
+      const diff = dayIndex - day.getDay();
+      day.setDate(day.getDate() + diff);
+      return day;
+    }
+  }
+  if (lowerPhrase.includes("next")) {
+    const dayName = lowerPhrase.split('next ')[1];
+    const dayIndex = DAY_NAMES.map(d => d.toLowerCase()).indexOf(dayName);
+    if (dayIndex !== -1) {
+      const day = new Date(today);
+      const diff = dayIndex - day.getDay();
+      day.setDate(day.getDate() + 7 + (diff > 0 ? diff : diff + 7));
+      return day;
+    }
+  }
+  return null;
+}
+
+// helper function for ISO format
+function pad(n) {
+  return n.toString().padStart(2, '0');
+}
+function iso(year, month, day) {
+  const d = new Date(year, month - 1, day);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+function monthName(m) {
+  return new Date(2000, m - 1, 1).toLocaleString('default', {
+    month: 'long'
+  });
+}
+
+// refresh views logic
+function refreshViews() {
+  if (tabMonth.classList.contains('active')) buildMonthView(currentYear, currentMonth);
+  if (tabYear.classList.contains('active')) buildYearView(currentYear);
+  if (tabSummary.classList.contains('active')) {
+    const activeTab = document.querySelector('.summary-tab-btn.active').dataset.tab;
+    if (activeTab === 'month') updateSummaryMonthly(currentYear, currentMonth);
+    else if (activeTab === 'year') updateSummaryYearly(summaryCurrentYear);
+    else if (activeTab === 'range') updateSummaryRange();
+  }
+}
+
+// initialize
+function initApp() {
+  loadSchedule();
+  const now = new Date();
+  if (now.getFullYear() < START_YEAR) {
+    currentYear = START_YEAR;
+    currentMonth = 1;
+  }
+  refreshViews();
+}
+initApp();
